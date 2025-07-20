@@ -82,7 +82,7 @@ function generateSSOToken(user) {
   return token;
 }
 
-// REPLACE the existing generateSSO_URL function with this ENHANCED VERSION
+// ENHANCED SSO URL Generation - FIXED for login_required
 function generateSSO_URL(client, user, baseUrl) {
   const ssoToken = generateSSOToken(user);
   const redirectUri = (client.callbacks && client.callbacks[0]) || `${baseUrl}/apps`;
@@ -153,7 +153,7 @@ function generateSSO_URL(client, user, baseUrl) {
   };
 }
 
-// ADD: Enhanced callback handling endpoint
+// Enhanced callback handling endpoint
 app.get('/sso-callback', requiresAuth(), (req, res) => {
   const { error, error_description, state, code } = req.query;
   
@@ -395,147 +395,7 @@ app.get('/account', requiresAuth(), async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching account data:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// API endpoint to get all applications in the tenant - FIXED VERSION
-app.get('/api/applications', requiresAuth(), async (req, res) => {
-  try {
-    console.log('Fetching applications from Auth0...');
-    
-    const clients = await managementAPI.getClients({
-      fields: 'client_id,name,description,app_type,logo_uri,callbacks,web_origins,client_metadata',
-      include_fields: true
-    });
-
-    console.log(`Found ${clients.length} total clients`);
-
-    const applications = clients
-      .filter(client => {
-        const isCurrentApp = client.client_id === process.env.AUTH0_CLIENT_ID;
-        const isManagementApp = client.client_id === process.env.AUTH0_MGMT_CLIENT_ID;
-        const isSystemApp = client.name && (
-          client.name.includes('Auth0') ||
-          client.name.includes('Management') ||
-          client.name.includes('Global Client') ||
-          client.name.includes('All Applications')
-        );
-        const isM2M = client.app_type === 'm2m';
-        
-        return !isCurrentApp && !isManagementApp && !isSystemApp && !isM2M;
-      })
-      .map(client => ({
-        client_id: client.client_id,
-        name: client.name,
-        description: client.description,
-        app_type: client.app_type,
-        logo_uri: client.logo_uri,
-        created_at: new Date().toISOString(),
-        sso_disabled: false, // Default to false since we can't query this field
-        callbacks: client.callbacks,
-        web_origins: client.web_origins,
-        metadata: client.client_metadata || {}
-      }));
-
-    console.log(`After filtering: ${applications.length} applications`);
-    console.log('Applications:', applications.map(app => ({ name: app.name, type: app.app_type })));
-
-    res.json({
-      success: true,
-      applications: applications,
-      total: applications.length
-    });
-  } catch (error) {
-    console.error('Error fetching applications:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch applications',
-      message: error.message,
-      statusCode: error.statusCode
-    });
-  }
-});
-
-// SSO Debug endpoint
-app.get('/api/sso/debug/:clientId', requiresAuth(), async (req, res) => {
-  const { clientId } = req.params;
-  
-  try {
-    const client = await managementAPI.getClient({ client_id: clientId });
-    const sessionCheck = await validateSSOSession(req);
-    
-    res.json({
-      client_info: {
-        name: client.name,
-        app_type: client.app_type,
-        callbacks: client.callbacks,
-        web_origins: client.web_origins
-      },
-      session_info: sessionCheck,
-      auth0_config: {
-        custom_domain: process.env.AUTH0_CUSTOM_DOMAIN,
-        tenant_domain: process.env.AUTH0_TENANT_DOMAIN
-      },
-      suggested_sso_url: `https://${process.env.AUTH0_CUSTOM_DOMAIN}/authorize?client_id=${clientId}&response_type=code&prompt=none`,
-      timestamp: Date.now()
-    });
-    
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'healthy', 
-    timestamp: new Date().toISOString(),
-    version: '2.1.0',
-    sso_enabled: true,
-    session_fix_applied: true
-  });
-});
-
-// Error handling middleware
-app.use((error, req, res, next) => {
-  console.error('Application error:', error);
-  res.status(500).render('error', { 
-    message: 'An unexpected error occurred. Please try again later.' 
-  });
-});
-
-// 404 handler
-app.use((req, res) => {
-  res.status(404).render('error', { 
-    message: 'Page not found. Please check the URL and try again.' 
-  });
-});
-
-// Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Enhanced Account Management Portal running on port ${PORT}`);
-  console.log('Available at:', process.env.BASE_URL || `http://localhost:${PORT}`);
-  console.log('Auth0 Configuration:');
-  console.log('- Custom Domain:', process.env.AUTH0_CUSTOM_DOMAIN || 'REQUIRED - NOT SET!');
-  console.log('- Tenant Domain (for Management API):', process.env.AUTH0_TENANT_DOMAIN || 'REQUIRED - NOT SET!');
-  console.log('- Management Client ID:', process.env.AUTH0_MGMT_CLIENT_ID ? 'SET' : 'NOT SET');
-  console.log('🚀 Enhanced True One-Click SSO Ready!');
-  console.log('🔐 Silent Authentication Enabled');
-  console.log('🎯 Multi-App SSO Active');
-  console.log('✅ Auth0 Management API Field Issue Fixed');
-  console.log('✅ Session Validation Issue Fixed');
-  console.log('✅ Enhanced SSO URL Generation Applied');
-  console.log('🎉 Ready for One-Click App Launches!');
-  
-  if (!process.env.AUTH0_CUSTOM_DOMAIN) {
-    console.error('❌ ERROR: AUTH0_CUSTOM_DOMAIN is required for SSO functionality!');
-  }
-  if (!process.env.AUTH0_TENANT_DOMAIN) {
-    console.error('❌ ERROR: AUTH0_TENANT_DOMAIN is required for Management API calls!');
-  }
-});render('error', { message: 'Failed to load account data' });
+    res.status(500).render('error', { message: 'Failed to load account data' });
   }
 });
 
@@ -890,4 +750,146 @@ app.post('/api/applications/:clientId/sso-fallback', requiresAuth(), async (req,
     
   } catch (error) {
     console.error('SSO Fallback Error:', error);
-    res.status(500).
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// API endpoint to get all applications in the tenant - FIXED VERSION
+app.get('/api/applications', requiresAuth(), async (req, res) => {
+  try {
+    console.log('Fetching applications from Auth0...');
+    
+    const clients = await managementAPI.getClients({
+      fields: 'client_id,name,description,app_type,logo_uri,callbacks,web_origins,client_metadata',
+      include_fields: true
+    });
+
+    console.log(`Found ${clients.length} total clients`);
+
+    const applications = clients
+      .filter(client => {
+        const isCurrentApp = client.client_id === process.env.AUTH0_CLIENT_ID;
+        const isManagementApp = client.client_id === process.env.AUTH0_MGMT_CLIENT_ID;
+        const isSystemApp = client.name && (
+          client.name.includes('Auth0') ||
+          client.name.includes('Management') ||
+          client.name.includes('Global Client') ||
+          client.name.includes('All Applications')
+        );
+        const isM2M = client.app_type === 'm2m';
+        
+        return !isCurrentApp && !isManagementApp && !isSystemApp && !isM2M;
+      })
+      .map(client => ({
+        client_id: client.client_id,
+        name: client.name,
+        description: client.description,
+        app_type: client.app_type,
+        logo_uri: client.logo_uri,
+        created_at: new Date().toISOString(),
+        sso_disabled: false, // Default to false since we can't query this field
+        callbacks: client.callbacks,
+        web_origins: client.web_origins,
+        metadata: client.client_metadata || {}
+      }));
+
+    console.log(`After filtering: ${applications.length} applications`);
+    console.log('Applications:', applications.map(app => ({ name: app.name, type: app.app_type })));
+
+    res.json({
+      success: true,
+      applications: applications,
+      total: applications.length
+    });
+  } catch (error) {
+    console.error('Error fetching applications:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch applications',
+      message: error.message,
+      statusCode: error.statusCode
+    });
+  }
+});
+
+// SSO Debug endpoint
+app.get('/api/sso/debug/:clientId', requiresAuth(), async (req, res) => {
+  const { clientId } = req.params;
+  
+  try {
+    const client = await managementAPI.getClient({ client_id: clientId });
+    const sessionCheck = await validateSSOSession(req);
+    
+    res.json({
+      client_info: {
+        name: client.name,
+        app_type: client.app_type,
+        callbacks: client.callbacks,
+        web_origins: client.web_origins
+      },
+      session_info: sessionCheck,
+      auth0_config: {
+        custom_domain: process.env.AUTH0_CUSTOM_DOMAIN,
+        tenant_domain: process.env.AUTH0_TENANT_DOMAIN
+      },
+      suggested_sso_url: `https://${process.env.AUTH0_CUSTOM_DOMAIN}/authorize?client_id=${clientId}&response_type=code&prompt=none`,
+      timestamp: Date.now()
+    });
+    
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    version: '2.1.0',
+    sso_enabled: true,
+    session_fix_applied: true,
+    enhanced_sso_fix_applied: true
+  });
+});
+
+// Error handling middleware
+app.use((error, req, res, next) => {
+  console.error('Application error:', error);
+  res.status(500).render('error', { 
+    message: 'An unexpected error occurred. Please try again later.' 
+  });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).render('error', { 
+    message: 'Page not found. Please check the URL and try again.' 
+  });
+});
+
+// Start server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Enhanced Account Management Portal running on port ${PORT}`);
+  console.log('Available at:', process.env.BASE_URL || `http://localhost:${PORT}`);
+  console.log('Auth0 Configuration:');
+  console.log('- Custom Domain:', process.env.AUTH0_CUSTOM_DOMAIN || 'REQUIRED - NOT SET!');
+  console.log('- Tenant Domain (for Management API):', process.env.AUTH0_TENANT_DOMAIN || 'REQUIRED - NOT SET!');
+  console.log('- Management Client ID:', process.env.AUTH0_MGMT_CLIENT_ID ? 'SET' : 'NOT SET');
+  console.log('🚀 Enhanced True One-Click SSO Ready!');
+  console.log('🔐 Silent Authentication Enabled');
+  console.log('🎯 Multi-App SSO Active');
+  console.log('✅ Auth0 Management API Field Issue Fixed');
+  console.log('✅ Session Validation Issue Fixed');
+  console.log('✅ Enhanced SSO URL Generation Applied');
+  console.log('✅ Syntax Error Fixed - Ready for Deployment!');
+  console.log('🎉 Ready for One-Click App Launches!');
+  
+  if (!process.env.AUTH0_CUSTOM_DOMAIN) {
+    console.error('❌ ERROR: AUTH0_CUSTOM_DOMAIN is required for SSO functionality!');
+  }
+  if (!process.env.AUTH0_TENANT_DOMAIN) {
+    console.error('❌ ERROR: AUTH0_TENANT_DOMAIN is required for Management API calls!');
+  }
+});
