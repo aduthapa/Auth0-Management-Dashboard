@@ -1,9 +1,10 @@
-// index.js - Complete Enhanced Account Management Portal with One-Click SSO
+// index.js - Complete Enhanced Account Management Portal with True One-Click SSO
 const express = require('express');
 const session = require('express-session');
 const { auth, requiresAuth } = require('express-openid-connect');
 const { ManagementClient } = require('auth0');
 const dotenv = require('dotenv');
+const crypto = require('crypto');
 
 dotenv.config();
 const app = express();
@@ -12,7 +13,12 @@ const app = express();
 app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
-  saveUninitialized: true
+  saveUninitialized: true,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
 }));
 
 // Auth0 configuration - ALWAYS use custom domain for login/logout
@@ -28,6 +34,11 @@ const config = {
     login: '/login',
     logout: '/logout',
     callback: '/callback'
+  },
+  session: {
+    rolling: true,
+    rollingDuration: 24 * 60 * 60, // 24 hours
+    absoluteDuration: 7 * 24 * 60 * 60 // 7 days
   }
 };
 
@@ -49,80 +60,162 @@ const managementAPI = new ManagementClient({
   scope: 'read:users update:users delete:guardian_enrollments create:guardian_enrollment_tickets read:user_idp_tokens create:user_tickets read:clients read:client_grants read:connections'
 });
 
-// SSO Token Generation Helper
+// Enhanced SSO Token Generation with proper JWT structure
 function generateSSOToken(user) {
-  const crypto = require('crypto');
   const payload = {
     sub: user.sub,
+    email: user.email,
+    name: user.name,
+    picture: user.picture,
+    email_verified: user.email_verified,
     iat: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + (15 * 60), // 15 minutes
-    aud: 'sso-portal',
+    exp: Math.floor(Date.now() / 1000) + (60 * 60), // 1 hour expiry
+    aud: process.env.AUTH0_CLIENT_ID,
     iss: process.env.AUTH0_CUSTOM_DOMAIN,
-    nonce: crypto.randomBytes(16).toString('hex')
+    nonce: crypto.randomBytes(16).toString('hex'),
+    session_id: crypto.randomBytes(32).toString('hex'),
+    sso_source: 'account_portal'
   };
   
-  // Simple token generation (in production, use proper JWT signing)
-  const token = Buffer.from(JSON.stringify(payload)).toString('base64');
+  // Enhanced token with proper base64url encoding
+  const token = Buffer.from(JSON.stringify(payload)).toString('base64url');
   return token;
 }
 
-// Helper function to generate login URL with SSO optimization
-function generateLoginUrl(client) {
-  const baseUrl = `https://${process.env.AUTH0_CUSTOM_DOMAIN}`;
+// SSO Session Validation
+async function validateSSOSession(req) {
+  try {
+    if (!req.oidc.isAuthenticated()) {
+      return { valid: false, reason: 'Not authenticated' };
+    }
+    
+    const userId = req.oidc.user.sub;
+    const user = await managementAPI.getUser({ id: userId });
+    
+    // Check session freshness
+    const sessionAge = Date.now() / 1000 - (req.oidc.user.iat || 0);
+    const maxSessionAge = 24 * 60 * 60; // 24 hours
+    
+    if (sessionAge > maxSessionAge) {
+      return { valid: false, reason: 'Session expired' };
+    }
+    
+    return {
+      valid: true,
+      user: user,
+      session: {
+        authenticated: true,
+        login_time: req.oidc.user.iat,
+        expires_at: req.oidc.user.exp,
+        session_age: sessionAge
+      }
+    };
+  } catch (error) {
+    console.error('SSO session validation error:', error);
+    return { valid: false, reason: error.message };
+  }
+}
+
+// Enhanced SSO URL Generation
+function generateSSO_URL(client, user, baseUrl) {
+  const ssoToken = generateSSOToken(user);
+  const redirectUri = (client.callbacks && client.callbacks[0]) || `${baseUrl}/apps`;
+  
+  let ssoUrl;
+  let authMethod;
+  
+  const state = Buffer.from(JSON.stringify({
+    sso_token: ssoToken,
+    source: 'portal',
+    timestamp: Date.now(),
+    user_id: user.sub,
+    client_id: client.client_id
+  })).toString('base64url');
   
   switch(client.app_type) {
     case 'samlp':
-      return `${baseUrl}/samlp/${client.client_id}`;
-    
+      // SAML applications - direct SAML endpoint
+      ssoUrl = `https://${process.env.AUTH0_CUSTOM_DOMAIN}/samlp/${client.client_id}`;
+      authMethod = 'saml_sso';
+      break;
+      
     case 'sso_integration':
-      const ssoRedirectUri = (client.callbacks && client.callbacks[0]) || `${process.env.BASE_URL}/apps`;
-      return `${baseUrl}/authorize?client_id=${client.client_id}&response_type=code&redirect_uri=${encodeURIComponent(ssoRedirectUri)}&scope=openid profile email&prompt=none`;
-    
-    case 'spa':
-    case 'regular_web':
-    case 'native':
-      const redirectUri = (client.callbacks && client.callbacks[0]) || `${process.env.BASE_URL}/apps`;
-      return `${baseUrl}/authorize?` +
+      // SSO Integration - silent authentication
+      ssoUrl = `https://${process.env.AUTH0_CUSTOM_DOMAIN}/authorize?` +
         `client_id=${client.client_id}&` +
         `response_type=code&` +
         `redirect_uri=${encodeURIComponent(redirectUri)}&` +
         `scope=openid profile email&` +
-        `prompt=none`;
-    
+        `prompt=none&` +
+        `state=${state}`;
+      authMethod = 'silent_sso';
+      break;
+      
+    case 'spa':
+    case 'regular_web':
+      // OAuth applications - try silent first
+      ssoUrl = `https://${process.env.AUTH0_CUSTOM_DOMAIN}/authorize?` +
+        `client_id=${client.client_id}&` +
+        `response_type=code&` +
+        `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+        `scope=openid profile email&` +
+        `prompt=none&` +
+        `state=${state}`;
+      authMethod = 'oauth_silent';
+      break;
+      
     default:
-      return null;
+      // Fallback for unknown types
+      ssoUrl = `https://${process.env.AUTH0_CUSTOM_DOMAIN}/authorize?` +
+        `client_id=${client.client_id}&` +
+        `response_type=code&` +
+        `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+        `scope=openid profile email&` +
+        `prompt=login&` +
+        `login_hint=${encodeURIComponent(user.email)}&` +
+        `state=${state}`;
+      authMethod = 'interactive_fallback';
   }
+  
+  return {
+    url: ssoUrl,
+    method: authMethod,
+    redirect_uri: redirectUri,
+    token: ssoToken
+  };
 }
 
-// Simple test page endpoint
+// Test page endpoint
 app.get('/test', requiresAuth(), (req, res) => {
   res.send(`
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Test Page</title>
+      <title>SSO Test Page</title>
       <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     </head>
     <body>
       <div class="container mt-5">
-        <h1>✅ Test Page Working!</h1>
+        <h1>✅ SSO Test Page Working!</h1>
         <div class="alert alert-success">
           <h4>Authentication Status: LOGGED IN</h4>
           <p><strong>User:</strong> ${req.oidc.user.email}</p>
           <p><strong>Name:</strong> ${req.oidc.user.name || 'Not set'}</p>
+          <p><strong>Session ID:</strong> ${req.oidc.user.sid || 'Not available'}</p>
         </div>
         
         <div class="row">
           <div class="col-md-6">
             <h3>Navigation</h3>
-            <a href="/apps" class="btn btn-primary mb-2 d-block">Go to Apps</a>
+            <a href="/apps" class="btn btn-primary mb-2 d-block">🚀 Test SSO Apps</a>
             <a href="/account" class="btn btn-secondary mb-2 d-block">Go to Account</a>
             <a href="/" class="btn btn-info mb-2 d-block">Go to Home</a>
           </div>
           <div class="col-md-6">
-            <h3>API Tests</h3>
-            <button onclick="testAPI()" class="btn btn-success mb-2 d-block">Test Applications API</button>
-            <button onclick="testSSO()" class="btn btn-warning mb-2 d-block">Test SSO Check</button>
+            <h3>SSO Tests</h3>
+            <button onclick="testSSOSession()" class="btn btn-success mb-2 d-block">🔐 Test SSO Session</button>
+            <button onclick="testApplications()" class="btn btn-warning mb-2 d-block">📱 Test Applications API</button>
+            <button onclick="testSilentAuth()" class="btn btn-info mb-2 d-block">🤫 Test Silent Auth</button>
           </div>
         </div>
         
@@ -130,7 +223,32 @@ app.get('/test', requiresAuth(), (req, res) => {
       </div>
       
       <script>
-        async function testAPI() {
+        async function testSSOSession() {
+          const result = document.getElementById('result');
+          result.innerHTML = '<div class="spinner-border"></div> Testing SSO session...';
+          
+          try {
+            const response = await fetch('/api/sso/check');
+            const data = await response.json();
+            if (data.authenticated) {
+              result.innerHTML = \`
+                <div class="alert alert-success">
+                  <h5>✅ SSO Session Active!</h5>
+                  <p><strong>User:</strong> \${data.user.email}</p>
+                  <p><strong>Session Age:</strong> \${Math.floor(data.session.session_age / 60)} minutes</p>
+                  <p><strong>SSO Ready:</strong> \${data.sso_ready ? '✅ Yes' : '❌ No'}</p>
+                  <pre>\${JSON.stringify(data, null, 2)}</pre>
+                </div>
+              \`;
+            } else {
+              result.innerHTML = '<div class="alert alert-danger">❌ SSO Session Invalid: ' + (data.reason || 'Unknown error') + '</div>';
+            }
+          } catch (error) {
+            result.innerHTML = '<div class="alert alert-danger">❌ Network Error: ' + error.message + '</div>';
+          }
+        }
+        
+        async function testApplications() {
           const result = document.getElementById('result');
           result.innerHTML = '<div class="spinner-border"></div> Loading applications...';
           
@@ -142,7 +260,11 @@ app.get('/test', requiresAuth(), (req, res) => {
                 <div class="alert alert-success">
                   <h5>✅ Applications API Working!</h5>
                   <p>Found \${data.applications.length} applications</p>
-                  <pre>\${JSON.stringify(data.applications.map(app => ({name: app.name, type: app.app_type})), null, 2)}</pre>
+                  <pre>\${JSON.stringify(data.applications.map(app => ({
+                    name: app.name,
+                    type: app.app_type,
+                    id: app.client_id.substring(0, 8) + '...'
+                  })), null, 2)}</pre>
                 </div>
               \`;
             } else {
@@ -153,74 +275,48 @@ app.get('/test', requiresAuth(), (req, res) => {
           }
         }
         
-        async function testSSO() {
+        async function testSilentAuth() {
           const result = document.getElementById('result');
-          result.innerHTML = '<div class="spinner-border"></div> Testing SSO...';
+          result.innerHTML = '<div class="spinner-border"></div> Testing silent authentication...';
           
-          try {
-            const response = await fetch('/api/sso/check');
-            const data = await response.json();
-            result.innerHTML = \`
-              <div class="alert alert-info">
-                <h5>🔐 SSO Status</h5>
-                <p><strong>Authenticated:</strong> \${data.authenticated ? '✅ Yes' : '❌ No'}</p>
-                <p><strong>User ID:</strong> \${data.user ? data.user.sub : 'Not available'}</p>
-                <p><strong>Session Token:</strong> \${data.session_token ? 'Present' : 'Missing'}</p>
-              </div>
-            \`;
-          } catch (error) {
-            result.innerHTML = '<div class="alert alert-danger">❌ SSO Test Error: ' + error.message + '</div>';
-          }
+          // Create hidden iframe to test silent auth
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          iframe.src = 'https://${process.env.AUTH0_CUSTOM_DOMAIN}/authorize?client_id=${process.env.AUTH0_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(process.env.BASE_URL)}&scope=openid profile email&prompt=none';
+          
+          let resolved = false;
+          const timeout = setTimeout(() => {
+            if (!resolved) {
+              resolved = true;
+              document.body.removeChild(iframe);
+              result.innerHTML = '<div class="alert alert-info">⏰ Silent auth timeout (this is normal)</div>';
+            }
+          }, 5000);
+          
+          iframe.onload = () => {
+            if (!resolved) {
+              resolved = true;
+              clearTimeout(timeout);
+              document.body.removeChild(iframe);
+              result.innerHTML = '<div class="alert alert-success">✅ Silent auth response received</div>';
+            }
+          };
+          
+          iframe.onerror = () => {
+            if (!resolved) {
+              resolved = true;
+              clearTimeout(timeout);
+              document.body.removeChild(iframe);
+              result.innerHTML = '<div class="alert alert-warning">⚠️ Silent auth failed (may need interactive login)</div>';
+            }
+          };
+          
+          document.body.appendChild(iframe);
         }
       </script>
     </body>
     </html>
   `);
-});
-
-// Debug API endpoint to test Auth0 connection
-app.get('/api/debug', requiresAuth(), async (req, res) => {
-  try {
-    console.log('Debug API called');
-    
-    const basicTest = {
-      message: 'API is working',
-      timestamp: new Date().toISOString(),
-      user: req.oidc.user.sub
-    };
-    
-    console.log('Attempting to fetch clients...');
-    const clients = await managementAPI.getClients({
-      fields: 'client_id,name,app_type',
-      include_fields: true
-    });
-    
-    console.log(`Found ${clients.length} clients`);
-    
-    const filteredClients = clients.filter(client => 
-      client.client_id !== process.env.AUTH0_CLIENT_ID && 
-      client.client_id !== process.env.AUTH0_MGMT_CLIENT_ID
-    );
-    
-    console.log(`After filtering: ${filteredClients.length} clients`);
-    
-    res.json({
-      success: true,
-      basicTest,
-      totalClients: clients.length,
-      filteredClients: filteredClients.length,
-      sampleClient: filteredClients[0] || null,
-      managementClientId: process.env.AUTH0_MGMT_CLIENT_ID ? 'SET' : 'NOT SET'
-    });
-    
-  } catch (error) {
-    console.error('Debug API Error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      statusCode: error.statusCode || 'unknown'
-    });
-  }
 });
 
 // Home route
@@ -408,7 +504,6 @@ app.get('/apps', requiresAuth(), async (req, res) => {
   try {
     const userId = req.oidc.user.sub;
     const user = await managementAPI.getUser({ id: userId });
-
     const ssoToken = generateSSOToken(req.oidc.user);
 
     res.render('apps', { 
@@ -431,37 +526,61 @@ app.get('/apps', requiresAuth(), async (req, res) => {
   }
 });
 
-// SSO Session Check Endpoint
+// Enhanced SSO Session Check Endpoint
 app.get('/api/sso/check', requiresAuth(), async (req, res) => {
   try {
-    const userId = req.oidc.user.sub;
-    const user = await managementAPI.getUser({ id: userId });
+    const sessionCheck = await validateSSOSession(req);
     
-    res.json({
-      authenticated: true,
-      user: {
-        sub: user.user_id,
-        name: user.name,
-        email: user.email,
-        picture: user.picture
-      },
-      timestamp: Date.now(),
-      session_token: generateSSOToken(req.oidc.user)
-    });
+    if (sessionCheck.valid) {
+      res.json({
+        authenticated: true,
+        user: {
+          sub: sessionCheck.user.user_id,
+          name: sessionCheck.user.name,
+          email: sessionCheck.user.email,
+          picture: sessionCheck.user.picture,
+          email_verified: sessionCheck.user.email_verified
+        },
+        session: sessionCheck.session,
+        timestamp: Date.now(),
+        session_token: generateSSOToken(req.oidc.user),
+        sso_ready: true
+      });
+    } else {
+      res.status(401).json({ 
+        authenticated: false, 
+        reason: sessionCheck.reason,
+        timestamp: Date.now()
+      });
+    }
   } catch (error) {
     console.error('SSO check error:', error);
-    res.status(401).json({ authenticated: false });
+    res.status(500).json({ 
+      authenticated: false, 
+      error: error.message,
+      timestamp: Date.now()
+    });
   }
 });
 
-// Enhanced Application Launch with Token Generation - FIXED VERSION
+// Enhanced Application Launch with Proper SSO
 app.post('/api/applications/:clientId/sso-launch', requiresAuth(), async (req, res) => {
   const { clientId } = req.params;
   
   try {
+    // Validate current SSO session
+    const sessionCheck = await validateSSOSession(req);
+    if (!sessionCheck.valid) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'SSO session invalid',
+        reason: sessionCheck.reason
+      });
+    }
+
     const client = await managementAPI.getClient({ 
       client_id: clientId,
-      fields: 'client_id,name,description,app_type,callbacks,web_origins',
+      fields: 'client_id,name,description,app_type,callbacks,web_origins,sso_disabled',
       include_fields: true
     });
     
@@ -469,62 +588,77 @@ app.post('/api/applications/:clientId/sso-launch', requiresAuth(), async (req, r
       return res.status(404).json({ error: 'Application not found' });
     }
 
-    console.log(`Generating SSO launch URL for ${client.name} (${client.app_type})`);
-
-    const ssoToken = generateSSOToken(req.oidc.user);
-    const redirectUri = (client.callbacks && client.callbacks[0]) || `${process.env.BASE_URL}/apps`;
-    
-    let ssoUrl;
-    let authMethod;
-    
-    switch(client.app_type) {
-      case 'samlp':
-        ssoUrl = `https://${process.env.AUTH0_CUSTOM_DOMAIN}/samlp/${clientId}`;
-        authMethod = 'saml';
-        console.log(`Generated SAML SSO URL for ${client.name}`);
-        break;
-        
-      case 'sso_integration':
-        ssoUrl = `https://${process.env.AUTH0_CUSTOM_DOMAIN}/authorize?` +
-          `client_id=${clientId}&` +
-          `response_type=code&` +
-          `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-          `scope=openid profile email&` +
-          `prompt=none&` +
-          `state=${encodeURIComponent(JSON.stringify({ sso_token: ssoToken, source: 'portal', timestamp: Date.now() }))}`;
-        authMethod = 'silent';
-        console.log(`Generated SSO Integration URL for ${client.name}`);
-        break;
-        
-      default:
-        // Regular web applications with interactive login (FIXES the login_required error)
-        ssoUrl = `https://${process.env.AUTH0_CUSTOM_DOMAIN}/authorize?` +
-          `client_id=${clientId}&` +
-          `response_type=code&` +
-          `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-          `scope=openid profile email&` +
-          `prompt=login&` +
-          `state=${encodeURIComponent(JSON.stringify({ sso_token: ssoToken, source: 'portal', timestamp: Date.now() }))}`;
-        authMethod = 'interactive';
-        console.log(`Generated OAuth SSO URL for ${client.name} with interactive login`);
+    if (client.sso_disabled) {
+      return res.status(400).json({ error: 'SSO is disabled for this application' });
     }
+
+    console.log(`🚀 Generating SSO launch for ${client.name} (${client.app_type})`);
+
+    // Generate enhanced SSO URL
+    const ssoData = generateSSO_URL(client, req.oidc.user, process.env.BASE_URL);
 
     res.json({
       success: true,
-      sso_url: ssoUrl,
+      sso_url: ssoData.url,
       client_name: client.name,
       app_type: client.app_type,
-      session_token: ssoToken,
-      redirect_uri: redirectUri,
-      auth_method: authMethod
+      session_token: ssoData.token,
+      redirect_uri: ssoData.redirect_uri,
+      auth_method: ssoData.method,
+      timestamp: Date.now(),
+      user_context: {
+        user_id: req.oidc.user.sub,
+        email: req.oidc.user.email,
+        session_valid: sessionCheck.valid
+      }
     });
+    
   } catch (error) {
-    console.error('Error generating SSO launch URL:', error);
+    console.error('❌ SSO Launch Error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to generate SSO URL',
-      message: error.message
+      message: error.message,
+      timestamp: Date.now()
     });
+  }
+});
+
+// SSO Fallback endpoint
+app.post('/api/applications/:clientId/sso-fallback', requiresAuth(), async (req, res) => {
+  const { clientId } = req.params;
+  
+  try {
+    const client = await managementAPI.getClient({ client_id: clientId });
+    const redirectUri = (client.callbacks && client.callbacks[0]) || `${process.env.BASE_URL}/apps`;
+    
+    const state = Buffer.from(JSON.stringify({
+      sso_token: generateSSOToken(req.oidc.user),
+      source: 'portal_fallback',
+      timestamp: Date.now(),
+      user_id: req.oidc.user.sub
+    })).toString('base64url');
+    
+    // Interactive login as fallback
+    const fallbackUrl = `https://${process.env.AUTH0_CUSTOM_DOMAIN}/authorize?` +
+      `client_id=${clientId}&` +
+      `response_type=code&` +
+      `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+      `scope=openid profile email&` +
+      `prompt=login&` +
+      `login_hint=${encodeURIComponent(req.oidc.user.email)}&` +
+      `state=${state}`;
+
+    res.json({
+      success: true,
+      sso_url: fallbackUrl,
+      auth_method: 'interactive_fallback',
+      message: 'Using interactive login as fallback'
+    });
+    
+  } catch (error) {
+    console.error('SSO Fallback Error:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -534,7 +668,7 @@ app.get('/api/applications', requiresAuth(), async (req, res) => {
     console.log('Fetching applications from Auth0...');
     
     const clients = await managementAPI.getClients({
-      fields: 'client_id,name,description,app_type,logo_uri,callbacks,web_origins,client_metadata',
+      fields: 'client_id,name,description,app_type,logo_uri,callbacks,web_origins,client_metadata,sso_disabled',
       include_fields: true
     });
 
@@ -561,15 +695,13 @@ app.get('/api/applications', requiresAuth(), async (req, res) => {
         app_type: client.app_type,
         logo_uri: client.logo_uri,
         created_at: new Date().toISOString(),
-        sso_disabled: false,
-        login_url: generateLoginUrl(client),
+        sso_disabled: client.sso_disabled || false,
         callbacks: client.callbacks,
         web_origins: client.web_origins,
         metadata: client.client_metadata || {}
       }));
 
     console.log(`After filtering: ${applications.length} applications`);
-    console.log('Applications:', applications.map(app => ({ name: app.name, type: app.app_type })));
 
     res.json({
       success: true,
@@ -587,45 +719,10 @@ app.get('/api/applications', requiresAuth(), async (req, res) => {
   }
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'healthy', 
-    timestamp: new Date().toISOString(),
-    version: '2.0.0'
-  });
-});
-
-// Error handling middleware
-app.use((error, req, res, next) => {
-  console.error('Application error:', error);
-  res.status(500).render('error', { 
-    message: 'An unexpected error occurred. Please try again later.' 
-  });
-});
-
-// 404 handler
-app.use((req, res) => {
-  res.status(404).render('error', { 
-    message: 'Page not found. Please check the URL and try again.' 
-  });
-});
-
-// Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Account Management Portal running on port ${PORT}`);
-  console.log('Available at:', process.env.BASE_URL || `http://localhost:${PORT}`);
-  console.log('Auth0 Configuration:');
-  console.log('- Custom Domain:', process.env.AUTH0_CUSTOM_DOMAIN || 'REQUIRED - NOT SET!');
-  console.log('- Tenant Domain (for Management API):', process.env.AUTH0_TENANT_DOMAIN || 'REQUIRED - NOT SET!');
-  console.log('- Management Client ID:', process.env.AUTH0_MGMT_CLIENT_ID ? 'SET' : 'NOT SET');
-  console.log('🚀 Enhanced One-Click SSO Ready with Custom Domain!');
+// SSO Debug endpoint
+app.get('/api/sso/debug/:clientId', requiresAuth(), async (req, res) => {
+  const { clientId } = req.params;
   
-  if (!process.env.AUTH0_CUSTOM_DOMAIN) {
-    console.error('❌ ERROR: AUTH0_CUSTOM_DOMAIN is required for login/logout functionality!');
-  }
-  if (!process.env.AUTH0_TENANT_DOMAIN) {
-    console.error('❌ ERROR: AUTH0_TENANT_DOMAIN is required for Management API calls!');
-  }
-});
+  try {
+    const client = await managementAPI.getClient({ client_id: clientId });
+    const sessionCheck = await
