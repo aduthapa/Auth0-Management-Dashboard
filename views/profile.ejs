@@ -1,0 +1,598 @@
+<!-- views/profile.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profile Settings | Account Management</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    .account-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 2rem 0;
+    }
+    .nav-pills .nav-link {
+      border-radius: 50px;
+      margin-right: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .nav-pills .nav-link.active {
+      background-color: #667eea;
+    }
+    .card {
+      border: none;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      margin-bottom: 1.5rem;
+    }
+    .profile-avatar {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: #667eea;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3rem;
+      color: white;
+      margin: 0 auto 2rem;
+    }
+    .field-group {
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      border-radius: 8px;
+      border: 1px solid #e9ecef;
+      position: relative;
+    }
+    .field-group:hover {
+      border-color: #667eea;
+      background-color: #f8f9ff;
+    }
+    .field-label {
+      font-weight: 600;
+      color: #495057;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+    }
+    .field-value {
+      font-size: 1.1rem;
+      padding: 0.5rem 0;
+      color: #212529;
+    }
+    .field-edit-form {
+      display: none;
+    }
+    .field-edit-form.active {
+      display: block;
+    }
+    .field-view.editing {
+      display: none;
+    }
+    .edit-btn {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .field-group:hover .edit-btn {
+      opacity: 1;
+    }
+    .validation-feedback {
+      display: none;
+      font-size: 0.875rem;
+      margin-top: 0.5rem;
+    }
+    .validation-feedback.show {
+      display: block;
+    }
+    .field-actions {
+      margin-top: 1rem;
+      display: flex;
+      gap: 0.5rem;
+    }
+    .readonly-field {
+      background-color: #f8f9fa;
+      border-color: #dee2e6;
+    }
+    .readonly-field:hover {
+      background-color: #f8f9fa;
+      border-color: #dee2e6;
+    }
+    .verified-badge {
+      display: inline-flex;
+      align-items: center;
+      margin-left: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <div class="account-header">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-md-12 text-center">
+          <h1><i class="bi bi-person-gear me-2"></i>Profile Settings</h1>
+          <p class="mb-0">Manage your personal information and account details</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container mt-4">
+    <!-- Alert Messages -->
+    <% if (typeof success !== 'undefined' && success) { %>
+      <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle me-2"></i><%= success %>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    <% } %>
+    <% if (typeof error !== 'undefined' && error) { %>
+      <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-circle me-2"></i><%= error %>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    <% } %>
+
+    <!-- Navigation Pills -->
+    <ul class="nav nav-pills justify-content-center mb-4">
+      <li class="nav-item">
+        <a class="nav-link" href="/account">
+          <i class="bi bi-house-door me-2"></i>Overview
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link active" href="/profile">
+          <i class="bi bi-person me-2"></i>Profile
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="/security">
+          <i class="bi bi-shield-check me-2"></i>Security
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="/change-password">
+          <i class="bi bi-key me-2"></i>Password
+        </a>
+      </li>
+    </ul>
+
+    <div class="row justify-content-center">
+      <div class="col-md-8">
+        <!-- Profile Avatar -->
+        <div class="text-center">
+          <div class="profile-avatar">
+            <% if (user.picture) { %>
+              <img src="<%= user.picture %>" alt="Profile" class="rounded-circle" style="width: 120px; height: 120px;">
+            <% } else { %>
+              <i class="bi bi-person-fill"></i>
+            <% } %>
+          </div>
+        </div>
+
+        <!-- Profile Information Card -->
+        <div class="card">
+          <div class="card-header">
+            <h5><i class="bi bi-person-lines-fill me-2"></i>Personal Information</h5>
+            <small class="text-muted">Click edit button on any field to modify it individually</small>
+          </div>
+          <div class="card-body">
+            <!-- Full Name Field -->
+            <div class="field-group">
+              <button class="btn btn-outline-primary btn-sm edit-btn" onclick="editField('name')">
+                <i class="bi bi-pencil"></i>
+              </button>
+              
+              <div class="field-view" id="name-view">
+                <div class="field-label">Full Name</div>
+                <div class="field-value"><%= user.name || 'Not set' %></div>
+              </div>
+              
+              <div class="field-edit-form" id="name-edit">
+                <form action="/update-field" method="POST">
+                  <input type="hidden" name="field" value="name">
+                  <div class="field-label">Full Name</div>
+                  <input type="text" class="form-control" name="value" value="<%= user.name || '' %>" 
+                         placeholder="Enter your full name" id="name-input">
+                  <div class="validation-feedback text-danger" id="name-error"></div>
+                  <div class="field-actions">
+                    <button type="submit" class="btn btn-success btn-sm">
+                      <i class="bi bi-check me-1"></i>Save
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="cancelEdit('name')">
+                      <i class="bi bi-x me-1"></i>Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <!-- Email Address Field -->
+            <div class="field-group">
+              <button class="btn btn-outline-primary btn-sm edit-btn" onclick="editField('email')">
+                <i class="bi bi-pencil"></i>
+              </button>
+              
+              <div class="field-view" id="email-view">
+                <div class="field-label">Email Address</div>
+                <div class="field-value">
+                  <%= user.email %>
+                  <% if (user.email_verified) { %>
+                    <span class="verified-badge">
+                      <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Verified</span>
+                    </span>
+                  <% } else { %>
+                    <span class="verified-badge">
+                      <span class="badge bg-warning"><i class="bi bi-exclamation-triangle me-1"></i>Unverified</span>
+                    </span>
+                  <% } %>
+                </div>
+              </div>
+              
+              <div class="field-edit-form" id="email-edit">
+                <form action="/update-field" method="POST">
+                  <input type="hidden" name="field" value="email">
+                  <div class="field-label">Email Address</div>
+                  <input type="email" class="form-control" name="value" value="<%= user.email %>" 
+                         placeholder="Enter your email address" id="email-input">
+                  <div class="validation-feedback text-danger" id="email-error"></div>
+                  <div class="validation-feedback text-success" id="email-success"></div>
+                  <small class="form-text text-muted">Changing your email will require verification</small>
+                  <div class="field-actions">
+                    <button type="submit" class="btn btn-success btn-sm" id="email-save-btn">
+                      <i class="bi bi-check me-1"></i>Save
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="cancelEdit('email')">
+                      <i class="bi bi-x me-1"></i>Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <!-- Username Field -->
+            <div class="field-group">
+              <button class="btn btn-outline-primary btn-sm edit-btn" onclick="editField('username')">
+                <i class="bi bi-pencil"></i>
+              </button>
+              
+              <div class="field-view" id="username-view">
+                <div class="field-label">Username</div>
+                <div class="field-value"><%= user.username || 'Not set' %></div>
+              </div>
+              
+              <div class="field-edit-form" id="username-edit">
+                <form action="/update-field" method="POST">
+                  <input type="hidden" name="field" value="username">
+                  <div class="field-label">Username</div>
+                  <input type="text" class="form-control" name="value" value="<%= user.username || '' %>" 
+                         placeholder="Choose a username" id="username-input">
+                  <div class="validation-feedback text-danger" id="username-error"></div>
+                  <small class="form-text text-muted">Username must be unique and contain only letters, numbers, and underscores</small>
+                  <div class="field-actions">
+                    <button type="submit" class="btn btn-success btn-sm">
+                      <i class="bi bi-check me-1"></i>Save
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="cancelEdit('username')">
+                      <i class="bi bi-x me-1"></i>Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <!-- Account Created (Read-only) -->
+            <div class="field-group readonly-field">
+              <div class="field-label">Account Created</div>
+              <div class="field-value">
+                <%= new Date(user.created_at).toLocaleDateString('en-US', { 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                }) %>
+              </div>
+            </div>
+
+            <!-- Last Updated (Read-only) -->
+            <div class="field-group readonly-field">
+              <div class="field-label">Last Updated</div>
+              <div class="field-value">
+                <%= new Date(user.updated_at).toLocaleDateString('en-US', { 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                }) %>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Account Information Card -->
+        <div class="card">
+          <div class="card-header">
+            <h5><i class="bi bi-info-circle me-2"></i>Account Information</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <div class="field-group readonly-field">
+                  <div class="field-label">User ID</div>
+                  <div class="field-value">
+                    <code style="font-size: 0.9rem;"><%= user.user_id %></code>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="field-group readonly-field">
+                  <div class="field-label">Connection</div>
+                  <div class="field-value">
+                    <% 
+                    let connection = user.user_id.split('|')[0];
+                    let connectionName = connection;
+                    if (connection === 'auth0') connectionName = 'Username-Password';
+                    else if (connection === 'google-oauth2') connectionName = 'Google';
+                    else if (connection === 'facebook') connectionName = 'Facebook';
+                    else if (connection === 'github') connectionName = 'GitHub';
+                    %>
+                    <span class="badge bg-info"><%= connectionName %></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-6">
+                <div class="field-group readonly-field">
+                  <div class="field-label">Login Count</div>
+                  <div class="field-value"><%= user.logins_count || 0 %> times</div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="field-group readonly-field">
+                  <div class="field-label">Last Login</div>
+                  <div class="field-value">
+                    <% if (user.last_login) { %>
+                      <%= new Date(user.last_login).toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'short', 
+                        day: 'numeric', 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      }) %>
+                    <% } else { %>
+                      Never
+                    <% } %>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card">
+          <div class="card-header">
+            <h5><i class="bi bi-lightning me-2"></i>Quick Actions</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-4 mb-3">
+                <a href="/change-password" class="btn btn-outline-warning w-100">
+                  <i class="bi bi-key me-2"></i>Change Password
+                </a>
+              </div>
+              <div class="col-md-4 mb-3">
+                <a href="/security" class="btn btn-outline-success w-100">
+                  <i class="bi bi-shield-plus me-2"></i>Setup 2FA
+                </a>
+              </div>
+              <div class="col-md-4 mb-3">
+                <button class="btn btn-outline-danger w-100" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                  <i class="bi bi-trash me-2"></i>Delete Account
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Back Button -->
+        <div class="text-center mt-4 mb-5">
+          <a href="/account" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-2"></i>Back to Account
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Account Modal -->
+  <div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header bg-danger text-white">
+          <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-2"></i>Delete Account</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-warning">
+            <strong>Warning:</strong> This action cannot be undone. All your data will be permanently deleted.
+          </div>
+          <p>If you're sure you want to delete your account, you can do so from the dedicated page with additional security checks.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <a href="/delete-account" class="btn btn-danger">Proceed to Account Deletion</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Store original values
+    const originalValues = {
+      name: '<%= user.name || "" %>',
+      email: '<%= user.email %>',
+      username: '<%= user.username || "" %>'
+    };
+
+    function editField(fieldName) {
+      // Hide all other edit forms
+      ['name', 'email', 'username'].forEach(field => {
+        if (field !== fieldName) {
+          cancelEdit(field);
+        }
+      });
+
+      const viewDiv = document.getElementById(`${fieldName}-view`);
+      const editDiv = document.getElementById(`${fieldName}-edit`);
+      const input = document.getElementById(`${fieldName}-input`);
+      
+      viewDiv.classList.add('editing');
+      editDiv.classList.add('active');
+      input.focus();
+      
+      // Clear any previous validation messages
+      clearValidationMessages(fieldName);
+    }
+
+    function cancelEdit(fieldName) {
+      const viewDiv = document.getElementById(`${fieldName}-view`);
+      const editDiv = document.getElementById(`${fieldName}-edit`);
+      const input = document.getElementById(`${fieldName}-input`);
+      
+      viewDiv.classList.remove('editing');
+      editDiv.classList.remove('active');
+      
+      // Restore original value
+      input.value = originalValues[fieldName];
+      
+      // Clear validation messages
+      clearValidationMessages(fieldName);
+    }
+
+    function clearValidationMessages(fieldName) {
+      const errorEl = document.getElementById(`${fieldName}-error`);
+      const successEl = document.getElementById(`${fieldName}-success`);
+      
+      if (errorEl) errorEl.classList.remove('show');
+      if (successEl) successEl.classList.remove('show');
+    }
+
+    // Real-time email validation
+    document.getElementById('email-input').addEventListener('blur', async function() {
+      const email = this.value.trim();
+      const currentEmail = originalValues.email;
+      const errorEl = document.getElementById('email-error');
+      const successEl = document.getElementById('email-success');
+      const saveBtn = document.getElementById('email-save-btn');
+      
+      // Clear previous messages
+      errorEl.classList.remove('show');
+      successEl.classList.remove('show');
+      
+      if (email && email !== currentEmail) {
+        try {
+          const response = await fetch('/api/validate-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+          });
+          const result = await response.json();
+          
+          if (result.available) {
+            successEl.textContent = 'Email address is available';
+            successEl.classList.add('show');
+            saveBtn.disabled = false;
+          } else {
+            errorEl.textContent = 'Email address is already in use';
+            errorEl.classList.add('show');
+            saveBtn.disabled = true;
+          }
+        } catch (error) {
+          console.error('Email validation error:', error);
+          saveBtn.disabled = false; // Allow submission if validation fails
+        }
+      } else {
+        saveBtn.disabled = false;
+      }
+    });
+
+    // Username validation
+    document.getElementById('username-input').addEventListener('input', function() {
+      const username = this.value.trim();
+      const errorEl = document.getElementById('username-error');
+      
+      if (username) {
+        const isValid = /^[a-zA-Z0-9_]+$/.test(username);
+        if (!isValid) {
+          errorEl.textContent = 'Username can only contain letters, numbers, and underscores';
+          errorEl.classList.add('show');
+        } else {
+          errorEl.classList.remove('show');
+        }
+      } else {
+        errorEl.classList.remove('show');
+      }
+    });
+
+    // Name validation
+    document.getElementById('name-input').addEventListener('input', function() {
+      const name = this.value.trim();
+      const errorEl = document.getElementById('name-error');
+      
+      if (name && name.length < 2) {
+        errorEl.textContent = 'Name must be at least 2 characters long';
+        errorEl.classList.add('show');
+      } else {
+        errorEl.classList.remove('show');
+      }
+    });
+
+    // Handle form submissions
+    document.querySelectorAll('.field-edit-form form').forEach(form => {
+      form.addEventListener('submit', function(e) {
+        const fieldName = this.querySelector('input[name="field"]').value;
+        const value = this.querySelector('input[name="value"]').value.trim();
+        
+        // Basic validation
+        if (fieldName === 'name' && value && value.length < 2) {
+          e.preventDefault();
+          document.getElementById('name-error').textContent = 'Name must be at least 2 characters long';
+          document.getElementById('name-error').classList.add('show');
+          return;
+        }
+        
+        if (fieldName === 'email' && (!value || !value.includes('@'))) {
+          e.preventDefault();
+          document.getElementById('email-error').textContent = 'Please enter a valid email address';
+          document.getElementById('email-error').classList.add('show');
+          return;
+        }
+        
+        if (fieldName === 'username' && value && !/^[a-zA-Z0-9_]+$/.test(value)) {
+          e.preventDefault();
+          document.getElementById('username-error').textContent = 'Username can only contain letters, numbers, and underscores';
+          document.getElementById('username-error').classList.add('show');
+          return;
+        }
+      });
+    });
+
+    // Auto-dismiss alerts
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(function() {
+        const alerts = document.querySelectorAll('.alert');
+        alerts.forEach(alert => {
+          const bsAlert = new bootstrap.Alert(alert);
+          if (bsAlert) {
+            setTimeout(() => bsAlert.close(), 5000);
+          }
+        });
+      }, 1000);
+    });
+  </script>
+</body>
+</html>
