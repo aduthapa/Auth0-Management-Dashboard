@@ -643,4 +643,511 @@
           </div>
           
           ${app.sso_disabled ? '<div class="alert alert-warning p-1 mt-1"><small>SSO Disabled</small></div>' : ''}
-        </div
+        </div>
+      `).join('');
+      
+      console.log('✅ Apps rendered with SSO capability');
+    }
+
+    // Enhanced SSO Launch Function
+    async function launchAppWithSSO(clientId) {
+      console.log('🚀 Launching app with true SSO:', clientId);
+      
+      const app = allApps.find(a => a.client_id === clientId);
+      const appName = app ? app.name : 'Application';
+      
+      // Check if SSO is disabled for this app
+      if (app && app.sso_disabled) {
+        showToast('warning', `⚠️ ${appName}`, 'SSO is disabled for this application', 'text-warning');
+        return;
+      }
+      
+      // Record launch attempt
+      recordAppLaunch(clientId);
+      
+      // Show launching state
+      setAppLaunchingState(clientId, true);
+      showToast('launching', `🚀 ${appName}`, 'Initializing SSO connection...', 'text-primary');
+      
+      try {
+        // Step 1: Verify SSO session
+        console.log('🔐 Verifying SSO session...');
+        const ssoCheck = await fetch('/api/sso/check');
+        const ssoStatus = await ssoCheck.json();
+        
+        if (!ssoStatus.authenticated || !ssoStatus.sso_ready) {
+          throw new Error('SSO session invalid. Please refresh the page and try again.');
+        }
+        
+        showToast('connecting', `🔗 ${appName}`, 'SSO verified, attempting silent login...', 'text-info');
+        
+        // Step 2: Try silent authentication first
+        const silentSuccess = await attemptSilentAuth(clientId, appName);
+        
+        if (!silentSuccess) {
+          // Step 3: Fallback to regular SSO launch
+          console.log('🔄 Silent auth failed, using SSO launch...');
+          await launchWithSSO(clientId, appName);
+        }
+        
+      } catch (error) {
+        console.error('❌ SSO Launch failed:', error);
+        handleSSOError(error, clientId, appName);
+      } finally {
+        setTimeout(() => setAppLaunchingState(clientId, false), 3000);
+      }
+    }
+
+    // Silent Authentication Attempt
+    async function attemptSilentAuth(clientId, appName) {
+      return new Promise((resolve) => {
+        console.log('🤫 Attempting silent authentication...');
+        
+        const iframe = document.getElementById('silentAuthFrame');
+        const authUrl = `https://${window.AUTH0_CONFIG.customDomain}/authorize?` +
+          `client_id=${clientId}&` +
+          `response_type=code&` +
+          `redirect_uri=${encodeURIComponent(window.AUTH0_CONFIG.baseUrl)}&` +
+          `scope=openid profile email&` +
+          `prompt=none&` +
+          `state=${encodeURIComponent(JSON.stringify({
+            source: 'silent_auth',
+            timestamp: Date.now(),
+            app_name: appName
+          }))}`;
+        
+        let timeoutId;
+        let resolved = false;
+        
+        // Set timeout for silent auth
+        timeoutId = setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            console.log('⏰ Silent auth timeout');
+            resolve(false);
+          }
+        }, 4000);
+        
+        // Handle iframe load
+        iframe.onload = () => {
+          if (!resolved) {
+            resolved = true;
+            clearTimeout(timeoutId);
+            
+            try {
+              // Check if we were redirected successfully
+              const iframeUrl = iframe.contentWindow.location.href;
+              
+              if (iframeUrl && !iframeUrl.includes('/authorize') && !iframeUrl.includes('error=')) {
+                console.log('✅ Silent authentication successful!');
+                showToast('success', `✅ ${appName}`, 'Silent authentication successful - opening app...', 'text-success');
+                
+                // Open the app directly
+                window.open(iframeUrl, '_blank');
+                resolve(true);
+              } else {
+                console.log('🔄 Silent auth requires fallback');
+                resolve(false);
+              }
+            } catch (e) {
+              // Cross-origin error is expected
+              console.log('🔄 Silent auth cross-origin (normal), using fallback');
+              resolve(false);
+            }
+          }
+        };
+        
+        iframe.onerror = () => {
+          if (!resolved) {
+            resolved = true;
+            clearTimeout(timeoutId);
+            console.log('❌ Silent auth iframe error');
+            resolve(false);
+          }
+        };
+        
+        // Start silent auth
+        iframe.src = authUrl;
+      });
+    }
+
+    // SSO Launch Function
+    async function launchWithSSO(clientId, appName) {
+      console.log('🎯 Launching with SSO URL generation...');
+      
+      const response = await fetch(`/api/applications/${clientId}/sso-launch`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        console.log('✅ SSO URL generated:', data.sso_url);
+        console.log('🔧 Auth method:', data.auth_method);
+        
+        showToast('redirecting', `✨ ${appName}`, `Launching with ${data.auth_method}`, 'text-success');
+        
+        // Open the SSO URL
+        window.open(data.sso_url, '_blank');
+        
+        // Show success message
+        setTimeout(() => {
+          showToast('launched', `🎉 ${appName}`, 'Application launched successfully!', 'text-success');
+        }, 1000);
+        
+      } else {
+        throw new Error(data.error || 'Failed to generate SSO URL');
+      }
+    }
+
+    function setAppLaunchingState(clientId, isLaunching) {
+      const appCard = document.querySelector(`[data-app-id="${clientId}"]`);
+      if (appCard) {
+        if (isLaunching) {
+          appCard.classList.add('launching');
+          const indicator = document.createElement('div');
+          indicator.className = 'launch-indicator';
+          indicator.innerHTML = '<i class="bi bi-rocket-takeoff me-1"></i>Launching...';
+          appCard.appendChild(indicator);
+        } else {
+          appCard.classList.remove('launching');
+          const indicator = appCard.querySelector('.launch-indicator');
+          if (indicator) indicator.remove();
+        }
+      }
+    }
+
+    function handleSSOError(error, clientId, appName) {
+      console.error('SSO Error Details:', error);
+      
+      setAppLaunchingState(clientId, false);
+      
+      let errorMessage = error.message || 'Unknown SSO error';
+      let actionButton = '';
+      
+      if (errorMessage.includes('session invalid') || errorMessage.includes('session expired')) {
+        errorMessage = 'Your session has expired. Please refresh the page and try again.';
+        actionButton = '<button class="btn btn-sm btn-primary mt-2" onclick="window.location.reload()">Refresh Page</button>';
+      } else if (errorMessage.includes('not found')) {
+        errorMessage = 'Application not found or not configured for SSO.';
+      } else if (errorMessage.includes('disabled')) {
+        errorMessage = 'SSO is disabled for this application.';
+      } else {
+        actionButton = `<button class="btn btn-sm btn-warning mt-2" onclick="launchAppWithSSO('${clientId}')">Try Again</button>`;
+      }
+      
+      const errorHtml = `
+        <div class="alert alert-danger alert-dismissible fade show mt-3" role="alert">
+          <h6><i class="bi bi-exclamation-triangle me-2"></i>SSO Launch Failed: ${appName}</h6>
+          <p class="mb-1">${errorMessage}</p>
+          ${actionButton}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      `;
+      
+      const container = document.querySelector('.container');
+      if (container) {
+        container.insertAdjacentHTML('afterbegin', errorHtml);
+      }
+      
+      showToast('error', `❌ ${appName}`, errorMessage, 'text-danger');
+    }
+
+    function showToast(id, title, message, textClass) {
+      // Remove existing toast with same ID
+      const existingToast = document.getElementById(id + 'Toast');
+      if (existingToast) {
+        existingToast.parentElement.remove();
+      }
+      
+      const toastHtml = `
+        <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1060;">
+          <div id="${id}Toast" class="toast" role="alert" data-bs-autohide="true" data-bs-delay="4000">
+            <div class="toast-header">
+              <strong class="me-auto ${textClass}">${title}</strong>
+              <small class="text-muted">${new Date().toLocaleTimeString()}</small>
+              <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">${message}</div>
+          </div>
+        </div>
+      `;
+      
+      document.body.insertAdjacentHTML('beforeend', toastHtml);
+      const toast = new bootstrap.Toast(document.getElementById(id + 'Toast'));
+      toast.show();
+    }
+
+    function getSSOModeIcon(appType, ssoDisabled) {
+      if (ssoDisabled) {
+        return '<div class="sso-indicator" style="background: #dc3545;" title="SSO Disabled"><i class="bi bi-x"></i></div>';
+      }
+      
+      switch(appType) {
+        case 'sso_integration':
+          return '<div class="sso-indicator sso-integration" title="SSO Integration"><i class="bi bi-link-45deg"></i></div>';
+        case 'samlp':
+          return '<div class="sso-indicator sso-saml" title="SAML SSO"><i class="bi bi-shield-check"></i></div>';
+        case 'regular_web':
+        case 'spa':
+          return '<div class="sso-indicator sso-oauth" title="OAuth SSO"><i class="bi bi-check"></i></div>';
+        case 'non_interactive':
+          return '<div class="sso-indicator sso-api" title="API Access"><i class="bi bi-gear"></i></div>';
+        default:
+          return '<div class="sso-indicator sso-ready" title="SSO Ready"><i class="bi bi-check"></i></div>';
+      }
+    }
+
+    function toggleFavorite(clientId) {
+      const index = favorites.indexOf(clientId);
+      if (index > -1) {
+        favorites.splice(index, 1);
+      } else {
+        favorites.push(clientId);
+      }
+      
+      localStorage.setItem('favoriteApps', JSON.stringify(favorites));
+      updateStats();
+      renderApps();
+      updateFilterCounts();
+    }
+
+    function filterApps() {
+      const searchInput = document.getElementById('searchInput');
+      const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+      
+      filteredApps = allApps.filter(app => {
+        const matchesSearch = !searchTerm || 
+          app.name.toLowerCase().includes(searchTerm) ||
+          (app.description && app.description.toLowerCase().includes(searchTerm));
+        
+        const matchesFilter = 
+          currentFilter === 'all' ||
+          (currentFilter === 'favorites' && favorites.includes(app.client_id)) ||
+          (currentFilter === 'saml' && app.app_type === 'samlp') ||
+          (currentFilter === 'oauth' && (app.app_type === 'spa' || app.app_type === 'regular_web')) ||
+          (currentFilter === 'recent' && isRecentlyUsed(app.client_id));
+        
+        return matchesSearch && matchesFilter;
+      });
+      
+      console.log(`🔍 Filtered to ${filteredApps.length} applications`);
+      renderApps();
+    }
+
+    function setActiveFilter(filter) {
+      currentFilter = filter;
+      
+      document.querySelectorAll('[data-filter]').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      const activeTab = document.querySelector(`[data-filter="${filter}"]`);
+      if (activeTab) {
+        activeTab.classList.add('active');
+      }
+      
+      filterApps();
+    }
+
+    function sortApps() {
+      const sortSelect = document.getElementById('sortSelect');
+      const sortBy = sortSelect ? sortSelect.value : 'name';
+      
+      filteredApps.sort((a, b) => {
+        switch(sortBy) {
+          case 'name':
+            return a.name.localeCompare(b.name);
+          case 'recent':
+            return getLastUsed(b.client_id) - getLastUsed(a.client_id);
+          case 'favorites':
+            const aFav = favorites.includes(a.client_id);
+            const bFav = favorites.includes(b.client_id);
+            if (aFav && !bFav) return -1;
+            if (!aFav && bFav) return 1;
+            return a.name.localeCompare(b.name);
+          case 'type':
+            return (a.app_type || 'z').localeCompare(b.app_type || 'z');
+          default:
+            return 0;
+        }
+      });
+      
+      renderApps();
+    }
+
+    function updateStats() {
+      const totalAppsEl = document.getElementById('totalApps');
+      const favoriteAppsEl = document.getElementById('favoriteApps');
+      const ssoEnabledEl = document.getElementById('ssoEnabled');
+      const recentLoginsEl = document.getElementById('recentLogins');
+      
+      if (totalAppsEl) totalAppsEl.textContent = allApps.length;
+      if (favoriteAppsEl) favoriteAppsEl.textContent = favorites.length;
+      if (ssoEnabledEl) ssoEnabledEl.textContent = allApps.filter(app => !app.sso_disabled).length;
+      if (recentLoginsEl) recentLoginsEl.textContent = getRecentlyUsedApps().length;
+      
+      updateFilterCounts();
+    }
+
+    function updateFilterCounts() {
+      const counts = {
+        allCount: allApps.length,
+        favCount: favorites.length,
+        samlCount: allApps.filter(app => app.app_type === 'samlp').length,
+        oauthCount: allApps.filter(app => app.app_type === 'spa' || app.app_type === 'regular_web').length,
+        recentCount: getRecentlyUsedApps().length
+      };
+      
+      Object.keys(counts).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = counts[id];
+      });
+    }
+
+    function updateRecentActivity() {
+      const activityEl = document.getElementById('recentActivity');
+      if (!activityEl) return;
+      
+      const recentApps = getRecentlyUsedApps().slice(0, 3);
+      
+      if (recentApps.length === 0) {
+        activityEl.innerHTML = '<div class="p-3 text-center text-muted small">No recent activity</div>';
+        return;
+      }
+      
+      const activityHtml = recentApps.map(app => `
+        <div class="border-bottom p-2">
+          <div class="d-flex align-items-center">
+            <div class="me-2" style="font-size: 1.2rem;">${getAppIcon(app.name)}</div>
+            <div class="flex-grow-1">
+              <div class="fw-bold small">${app.name}</div>
+              <div class="text-muted" style="font-size: 0.75rem;">
+                ${formatLastUsed(getLastUsed(app.client_id))}
+              </div>
+            </div>
+            <button class="btn btn-outline-primary btn-sm" onclick="launchAppWithSSO('${app.client_id}')">
+              <i class="bi bi-box-arrow-up-right"></i>
+            </button>
+          </div>
+        </div>
+      `).join('');
+      
+      activityEl.innerHTML = activityHtml;
+    }
+
+    function refreshApps() {
+      console.log('🔄 Refreshing applications...');
+      loadApplications();
+    }
+
+    async function testSSO() {
+      console.log('🔐 Testing SSO session...');
+      
+      const spinnerEl = document.getElementById('ssoSpinner');
+      const checkEl = document.getElementById('ssoCheck');
+      
+      if (spinnerEl) spinnerEl.style.display = 'inline-block';
+      if (checkEl) checkEl.style.display = 'none';
+      
+      try {
+        const response = await fetch('/api/sso/check');
+        const data = await response.json();
+        
+        if (data.authenticated && data.sso_ready) {
+          showToast('success', '✅ SSO Test Passed', `Session active: ${data.user.email}`, 'text-success');
+          if (checkEl) checkEl.style.display = 'inline-block';
+        } else {
+          showToast('error', '❌ SSO Test Failed', data.reason || 'Session invalid', 'text-danger');
+        }
+      } catch (error) {
+        console.error('SSO test failed:', error);
+        showToast('error', '❌ SSO Test Failed', error.message, 'text-danger');
+      } finally {
+        if (spinnerEl) spinnerEl.style.display = 'none';
+      }
+    }
+
+    // Utility functions
+    function getAppIcon(name) {
+      const icons = {
+        'cloud': 'bi-cloud-arrow-up',
+        'storage': 'bi-cloud-arrow-up',
+        'wp': 'bi-wordpress',
+        'wordpress': 'bi-wordpress',
+        'admin': 'bi-gear-fill',
+        'google': 'bi-google',
+        'workspace': 'bi-briefcase',
+        'office': 'bi-file-earmark-text',
+        'onlyoffice': 'bi-file-earmark-text',
+        'dashboard': 'bi-speedometer2',
+        'sso': 'bi-shield-check'
+      };
+      
+      const iconClass = Object.keys(icons).find(key => name.toLowerCase().includes(key));
+      return iconClass ? `<i class="bi ${icons[iconClass]}"></i>` : `<i class="bi bi-app"></i>`;
+    }
+
+    function getTypeBadgeColor(type) {
+      const colors = {
+        'samlp': 'primary',
+        'spa': 'success', 
+        'regular_web': 'info',
+        'native': 'warning',
+        'm2m': 'secondary',
+        'sso_integration': 'warning',
+        'non_interactive': 'dark'
+      };
+      return colors[type] || 'secondary';
+    }
+
+    function debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    }
+
+    function recordAppLaunch(clientId) {
+      const launches = JSON.parse(localStorage.getItem('appLaunches') || '{}');
+      launches[clientId] = Date.now();
+      localStorage.setItem('appLaunches', JSON.stringify(launches));
+    }
+
+    function getLastUsed(clientId) {
+      const launches = JSON.parse(localStorage.getItem('appLaunches') || '{}');
+      return launches[clientId] || 0;
+    }
+
+    function isRecentlyUsed(clientId) {
+      const lastUsed = getLastUsed(clientId);
+      return lastUsed > (Date.now() - 7 * 24 * 60 * 60 * 1000);
+    }
+
+    function getRecentlyUsedApps() {
+      return allApps.filter(app => isRecentlyUsed(app.client_id))
+                   .sort((a, b) => getLastUsed(b.client_id) - getLastUsed(a.client_id));
+    }
+
+    function formatLastUsed(timestamp) {
+      if (!timestamp) return 'Never';
+      
+      const now = Date.now();
+      const diff = now - timestamp;
+      
+      if (diff < 60000) return 'Just now';
+      if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+      if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+      return `${Math.floor(diff / 86400000)}d ago`;
+    }
+  </script>
+</body>
+</html>
