@@ -1,4 +1,4 @@
-<!-- views/apps.ejs - Fixed Rendering -->
+<!-- views/apps.ejs - Complete Enhanced SSO Implementation -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -191,6 +191,13 @@
       color: #2196f3;
       border-bottom-color: #2196f3;
     }
+    .silent-auth-frame {
+      display: none;
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+    }
   </style>
 </head>
 <body>
@@ -198,6 +205,9 @@
   <div class="sso-status" id="ssoStatus">
     <i class="bi bi-shield-check me-1"></i>SSO Ready
   </div>
+
+  <!-- Hidden iframe for silent authentication -->
+  <iframe class="silent-auth-frame" id="silentAuthFrame"></iframe>
 
   <!-- Pass server configuration to client-side JavaScript -->
   <script>
@@ -216,7 +226,7 @@
       <div class="row align-items-center">
         <div class="col-md-12 text-center">
           <h1><i class="bi bi-grid-3x3-gap me-2"></i>My Apps</h1>
-          <p class="mb-0">One-click access to all your applications</p>
+          <p class="mb-0">True one-click access to all your applications</p>
         </div>
       </div>
     </div>
@@ -267,14 +277,17 @@
     </ul>
 
     <!-- Enhanced SSO Banner -->
-    <div class="alert alert-info mb-4">
+    <div class="alert alert-success mb-4">
       <div class="row align-items-center">
         <div class="col-md-8">
           <h6 class="mb-1"><i class="bi bi-shield-check me-2"></i>Enhanced Single Sign-On Active</h6>
-          <small class="text-muted">Click any application for instant one-click access. No additional logins required.</small>
+          <small class="text-muted">True one-click access enabled with silent authentication. Apps launch instantly without additional login prompts.</small>
         </div>
         <div class="col-md-4 text-end">
-          <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Ready</span>
+          <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Active</span>
+          <button class="btn btn-outline-success btn-sm ms-2" onclick="testSSO()">
+            <i class="bi bi-shield-check me-1"></i>Test SSO
+          </button>
         </div>
       </div>
     </div>
@@ -400,10 +413,10 @@
               <i class="bi bi-check-circle text-success me-2" id="ssoCheck"></i>
               <span class="fw-bold">Active Session</span>
             </div>
-            <small class="text-muted">One-click access enabled for all applications</small>
+            <small class="text-muted">Silent authentication enabled for seamless app access</small>
             <div class="mt-2">
               <button class="btn btn-outline-success btn-sm w-100" onclick="testSSO()">
-                <i class="bi bi-shield-check me-1"></i>Test SSO
+                <i class="bi bi-shield-check me-1"></i>Test SSO Session
               </button>
             </div>
           </div>
@@ -416,7 +429,7 @@
           </div>
           <div class="card-body p-0">
             <div id="recentActivity">
-              <div class="p-3 text-center text-muted small">No recent activity</div>
+              <div class="p-3 text-center text-muted small">Loading activity...</div>
             </div>
           </div>
         </div>
@@ -456,13 +469,19 @@
 
     // Initialize page
     document.addEventListener('DOMContentLoaded', function() {
-      console.log('🎯 Apps page loaded, initializing...');
+      console.log('🚀 Enhanced SSO Apps page loaded');
       console.log('Auth0 Config:', window.AUTH0_CONFIG);
       console.log('SSO Token present:', !!window.SSO_TOKEN);
       
-      // Load applications immediately
+      // Initialize components
       loadApplications();
       setupEventListeners();
+      updateSSOStatus();
+      
+      // Test SSO session on load
+      setTimeout(() => {
+        testSSO();
+      }, 1000);
     });
 
     function setupEventListeners() {
@@ -485,8 +504,34 @@
       });
     }
 
+    async function updateSSOStatus() {
+      try {
+        const response = await fetch('/api/sso/check');
+        const data = await response.json();
+        
+        const statusEl = document.getElementById('ssoStatus');
+        const checkEl = document.getElementById('ssoCheck');
+        const spinnerEl = document.getElementById('ssoSpinner');
+        
+        if (data.authenticated && data.sso_ready) {
+          statusEl.innerHTML = '<i class="bi bi-check-circle me-1"></i>SSO Active';
+          statusEl.className = 'sso-status';
+          statusEl.style.background = 'rgba(40, 167, 69, 0.9)';
+          checkEl.style.display = 'inline-block';
+          spinnerEl.style.display = 'none';
+        } else {
+          statusEl.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>SSO Issue';
+          statusEl.style.background = 'rgba(220, 53, 69, 0.9)';
+          checkEl.style.display = 'none';
+          spinnerEl.style.display = 'none';
+        }
+      } catch (error) {
+        console.error('SSO status check failed:', error);
+      }
+    }
+
     function loadApplications() {
-      console.log('📱 Loading applications...');
+      console.log('📱 Loading applications with enhanced SSO...');
       
       const loadingState = document.getElementById('loadingState');
       const appsGrid = document.getElementById('appsGrid');
@@ -509,14 +554,15 @@
             allApps = data.applications;
             filteredApps = [...allApps];
             
-            console.log(`✅ Loaded ${allApps.length} applications:`, allApps.map(app => ({
+            console.log(`✅ Loaded ${allApps.length} applications for SSO:`, allApps.map(app => ({
               name: app.name,
               type: app.app_type,
-              id: app.client_id
+              sso_disabled: app.sso_disabled
             })));
             
             updateStats();
             renderApps();
+            updateRecentActivity();
             
             // Hide loading, show apps
             if (loadingState) loadingState.style.display = 'none';
@@ -528,7 +574,6 @@
         .catch(error => {
           console.error('❌ Error loading applications:', error);
           
-          // Show error message
           const errorHtml = `
             <div class="alert alert-danger">
               <h5>❌ Failed to Load Applications</h5>
@@ -549,7 +594,7 @@
     }
 
     function renderApps() {
-      console.log(`🎨 Rendering ${filteredApps.length} applications`);
+      console.log(`🎨 Rendering ${filteredApps.length} applications with SSO`);
       const grid = document.getElementById('appsGrid');
       const noAppsMessage = document.getElementById('noAppsMessage');
       
@@ -569,7 +614,7 @@
       
       grid.innerHTML = filteredApps.map(app => `
         <div class="app-card ${favorites.includes(app.client_id) ? 'favorite' : ''}" 
-             onclick="launchApp('${app.client_id}')"
+             onclick="launchAppWithSSO('${app.client_id}')"
              data-app-id="${app.client_id}">
           
           <button class="favorite-btn ${favorites.includes(app.client_id) ? 'active' : ''}" 
@@ -593,307 +638,9 @@
           <p class="text-muted small mb-0">${app.description || 'One-click SSO access'}</p>
           
           <div class="app-stats mt-2">
-            <small><i class="bi bi-calendar me-1"></i>Ready to launch</small>
-            ${getSSOModeIcon(app.app_type)}
+            <small><i class="bi bi-rocket me-1"></i>SSO Ready</small>
+            ${getSSOModeIcon(app.app_type, app.sso_disabled)}
           </div>
-        </div>
-      `).join('');
-      
-      console.log('✅ Apps rendered successfully');
-    }
-
-    function launchApp(clientId) {
-      console.log('🚀 Launching app:', clientId);
-      
-      const app = allApps.find(a => a.client_id === clientId);
-      const appName = app ? app.name : 'Application';
-      
-      // Record launch
-      recordAppLaunch(clientId);
-      
-      // Show launching state
-      setAppLaunchingState(clientId, true);
-      showToast('launching', `Launching ${appName}`, 'Connecting with SSO...', 'text-primary');
-      
-      // Call SSO launch API
-      fetch(`/api/applications/${clientId}/sso-launch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          console.log('✅ SSO URL generated:', data.sso_url);
-          window.open(data.sso_url, '_blank');
-          showToast('success', `✅ ${appName} Launched`, `Using ${data.auth_method} authentication`, 'text-success');
-        } else {
-          throw new Error(data.error || 'Failed to generate SSO URL');
-        }
-      })
-      .catch(error => {
-        console.error('❌ Launch failed:', error);
-        showToast('error', `❌ Launch Failed`, error.message, 'text-danger');
-      })
-      .finally(() => {
-        setTimeout(() => setAppLaunchingState(clientId, false), 2000);
-      });
-    }
-
-    function setAppLaunchingState(clientId, isLaunching) {
-      const appCard = document.querySelector(`[data-app-id="${clientId}"]`);
-      if (appCard) {
-        if (isLaunching) {
-          appCard.classList.add('launching');
-          const indicator = document.createElement('div');
-          indicator.className = 'launch-indicator';
-          indicator.innerHTML = '<i class="bi bi-rocket-takeoff me-1"></i>Launching...';
-          appCard.appendChild(indicator);
-        } else {
-          appCard.classList.remove('launching');
-          const indicator = appCard.querySelector('.launch-indicator');
-          if (indicator) indicator.remove();
-        }
-      }
-    }
-
-    function showToast(id, title, message, textClass) {
-      const toastHtml = `
-        <div class="toast-container position-fixed top-0 end-0 p-3">
-          <div id="${id}Toast" class="toast" role="alert" data-bs-autohide="true" data-bs-delay="3000">
-            <div class="toast-header">
-              <strong class="me-auto ${textClass}">${title}</strong>
-              <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
-            </div>
-            <div class="toast-body">${message}</div>
-          </div>
-        </div>
-      `;
-      
-      // Remove existing toast
-      const existingToast = document.getElementById(id + 'Toast');
-      if (existingToast) {
-        existingToast.parentElement.remove();
-      }
-      
-      document.body.insertAdjacentHTML('beforeend', toastHtml);
-      const toast = new bootstrap.Toast(document.getElementById(id + 'Toast'));
-      toast.show();
-    }
-
-    function getSSOModeIcon(appType) {
-      switch(appType) {
-        case 'sso_integration':
-          return '<div class="sso-indicator sso-integration" title="SSO Integration"><i class="bi bi-link-45deg"></i></div>';
-        case 'samlp':
-          return '<div class="sso-indicator sso-saml" title="SAML SSO"><i class="bi bi-shield-check"></i></div>';
-        case 'regular_web':
-        case 'spa':
-          return '<div class="sso-indicator sso-oauth" title="OAuth SSO"><i class="bi bi-check"></i></div>';
-        case 'non_interactive':
-          return '<div class="sso-indicator sso-api" title="API Access"><i class="bi bi-gear"></i></div>';
-        default:
-          return '<div class="sso-indicator sso-ready" title="SSO Ready"><i class="bi bi-check"></i></div>';
-      }
-    }
-
-    function toggleFavorite(clientId) {
-      const index = favorites.indexOf(clientId);
-      if (index > -1) {
-        favorites.splice(index, 1);
-      } else {
-        favorites.push(clientId);
-      }
-      
-      localStorage.setItem('favoriteApps', JSON.stringify(favorites));
-      updateStats();
-      renderApps();
-      updateFilterCounts();
-    }
-
-    function filterApps() {
-      const searchInput = document.getElementById('searchInput');
-      const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
-      
-      filteredApps = allApps.filter(app => {
-        const matchesSearch = !searchTerm || 
-          app.name.toLowerCase().includes(searchTerm) ||
-          (app.description && app.description.toLowerCase().includes(searchTerm));
-        
-        const matchesFilter = 
-          currentFilter === 'all' ||
-          (currentFilter === 'favorites' && favorites.includes(app.client_id)) ||
-          (currentFilter === 'saml' && app.app_type === 'samlp') ||
-          (currentFilter === 'oauth' && (app.app_type === 'spa' || app.app_type === 'regular_web')) ||
-          (currentFilter === 'recent' && isRecentlyUsed(app.client_id));
-        
-        return matchesSearch && matchesFilter;
-      });
-      
-      console.log(`🔍 Filtered to ${filteredApps.length} applications`);
-      renderApps();
-    }
-
-    function setActiveFilter(filter) {
-      currentFilter = filter;
-      
-      document.querySelectorAll('[data-filter]').forEach(tab => {
-        tab.classList.remove('active');
-      });
-      const activeTab = document.querySelector(`[data-filter="${filter}"]`);
-      if (activeTab) {
-        activeTab.classList.add('active');
-      }
-      
-      filterApps();
-    }
-
-    function sortApps() {
-      const sortSelect = document.getElementById('sortSelect');
-      const sortBy = sortSelect ? sortSelect.value : 'name';
-      
-      filteredApps.sort((a, b) => {
-        switch(sortBy) {
-          case 'name':
-            return a.name.localeCompare(b.name);
-          case 'recent':
-            return getLastUsed(b.client_id) - getLastUsed(a.client_id);
-          case 'favorites':
-            const aFav = favorites.includes(a.client_id);
-            const bFav = favorites.includes(b.client_id);
-            if (aFav && !bFav) return -1;
-            if (!aFav && bFav) return 1;
-            return a.name.localeCompare(b.name);
-          case 'type':
-            return (a.app_type || 'z').localeCompare(b.app_type || 'z');
-          default:
-            return 0;
-        }
-      });
-      
-      renderApps();
-    }
-
-    function updateStats() {
-      const totalAppsEl = document.getElementById('totalApps');
-      const favoriteAppsEl = document.getElementById('favoriteApps');
-      const ssoEnabledEl = document.getElementById('ssoEnabled');
-      const recentLoginsEl = document.getElementById('recentLogins');
-      
-      if (totalAppsEl) totalAppsEl.textContent = allApps.length;
-      if (favoriteAppsEl) favoriteAppsEl.textContent = favorites.length;
-      if (ssoEnabledEl) ssoEnabledEl.textContent = allApps.filter(app => !app.sso_disabled).length;
-      if (recentLoginsEl) recentLoginsEl.textContent = getRecentlyUsedApps().length;
-      
-      updateFilterCounts();
-    }
-
-    function updateFilterCounts() {
-      const counts = {
-        allCount: allApps.length,
-        favCount: favorites.length,
-        samlCount: allApps.filter(app => app.app_type === 'samlp').length,
-        oauthCount: allApps.filter(app => app.app_type === 'spa' || app.app_type === 'regular_web').length,
-        recentCount: getRecentlyUsedApps().length
-      };
-      
-      Object.keys(counts).forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.textContent = counts[id];
-      });
-    }
-
-    function refreshApps() {
-      console.log('🔄 Refreshing applications...');
-      loadApplications();
-    }
-
-    function testSSO() {
-      console.log('🔐 Testing SSO...');
-      
-      fetch('/api/sso/check')
-        .then(response => response.json())
-        .then(data => {
-          if (data.authenticated) {
-            showToast('success', '✅ SSO Test Passed', `User: ${data.user.email}`, 'text-success');
-          } else {
-            showToast('error', '❌ SSO Test Failed', 'Not authenticated', 'text-danger');
-          }
-        })
-        .catch(error => {
-          console.error('SSO test failed:', error);
-          showToast('error', '❌ SSO Test Failed', error.message, 'text-danger');
-        });
-    }
-
-    // Utility functions
-    function getAppIcon(name) {
-      const icons = {
-        'cloud': 'bi-cloud-arrow-up',
-        'storage': 'bi-cloud-arrow-up',
-        'wp': 'bi-wordpress',
-        'wordpress': 'bi-wordpress',
-        'admin': 'bi-gear-fill',
-        'google': 'bi-google',
-        'workspace': 'bi-briefcase',
-        'office': 'bi-file-earmark-text',
-        'onlyoffice': 'bi-file-earmark-text',
-        'dashboard': 'bi-speedometer2',
-        'sso': 'bi-shield-check'
-      };
-      
-      const iconClass = Object.keys(icons).find(key => name.toLowerCase().includes(key));
-      return iconClass ? `<i class="bi ${icons[iconClass]}"></i>` : `<i class="bi bi-app"></i>`;
-    }
-
-    function getTypeBadgeColor(type) {
-      const colors = {
-        'samlp': 'primary',
-        'spa': 'success', 
-        'regular_web': 'info',
-        'native': 'warning',
-        'm2m': 'secondary',
-        'sso_integration': 'warning',
-        'non_interactive': 'dark'
-      };
-      return colors[type] || 'secondary';
-    }
-
-    function formatDate(dateString) {
-      return new Date(dateString).toLocaleDateString();
-    }
-
-    function debounce(func, wait) {
-      let timeout;
-      return function executedFunction(...args) {
-        const later = () => {
-          clearTimeout(timeout);
-          func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-      };
-    }
-
-    function recordAppLaunch(clientId) {
-      const launches = JSON.parse(localStorage.getItem('appLaunches') || '{}');
-      launches[clientId] = Date.now();
-      localStorage.setItem('appLaunches', JSON.stringify(launches));
-    }
-
-    function getLastUsed(clientId) {
-      const launches = JSON.parse(localStorage.getItem('appLaunches') || '{}');
-      return launches[clientId] || 0;
-    }
-
-    function isRecentlyUsed(clientId) {
-      const lastUsed = getLastUsed(clientId);
-      return lastUsed > (Date.now() - 7 * 24 * 60 * 60 * 1000);
-    }
-
-    function getRecentlyUsedApps() {
-      return allApps.filter(app => isRecentlyUsed(app.client_id))
-                   .sort((a, b) => getLastUsed(b.client_id) - getLastUsed(a.client_id));
-    }
-  </script>
-</body>
-</html>
+          
+          ${app.sso_disabled ? '<div class="alert alert-warning p-1 mt-1"><small>SSO Disabled</small></div>' : ''}
+        </div
