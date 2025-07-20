@@ -725,4 +725,72 @@ app.get('/api/sso/debug/:clientId', requiresAuth(), async (req, res) => {
   
   try {
     const client = await managementAPI.getClient({ client_id: clientId });
-    const sessionCheck = await
+    const sessionCheck = await validateSSOSession(req);
+    
+    res.json({
+      client_info: {
+        name: client.name,
+        app_type: client.app_type,
+        callbacks: client.callbacks,
+        web_origins: client.web_origins,
+        sso_disabled: client.sso_disabled
+      },
+      session_info: sessionCheck,
+      auth0_config: {
+        custom_domain: process.env.AUTH0_CUSTOM_DOMAIN,
+        tenant_domain: process.env.AUTH0_TENANT_DOMAIN
+      },
+      suggested_sso_url: `https://${process.env.AUTH0_CUSTOM_DOMAIN}/authorize?client_id=${clientId}&response_type=code&prompt=none`,
+      timestamp: Date.now()
+    });
+    
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    version: '2.1.0',
+    sso_enabled: true
+  });
+});
+
+// Error handling middleware
+app.use((error, req, res, next) => {
+  console.error('Application error:', error);
+  res.status(500).render('error', { 
+    message: 'An unexpected error occurred. Please try again later.' 
+  });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).render('error', { 
+    message: 'Page not found. Please check the URL and try again.' 
+  });
+});
+
+// Start server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Enhanced Account Management Portal running on port ${PORT}`);
+  console.log('Available at:', process.env.BASE_URL || `http://localhost:${PORT}`);
+  console.log('Auth0 Configuration:');
+  console.log('- Custom Domain:', process.env.AUTH0_CUSTOM_DOMAIN || 'REQUIRED - NOT SET!');
+  console.log('- Tenant Domain (for Management API):', process.env.AUTH0_TENANT_DOMAIN || 'REQUIRED - NOT SET!');
+  console.log('- Management Client ID:', process.env.AUTH0_MGMT_CLIENT_ID ? 'SET' : 'NOT SET');
+  console.log('🚀 Enhanced True One-Click SSO Ready!');
+  console.log('🔐 Silent Authentication Enabled');
+  console.log('🎯 Multi-App SSO Active');
+  
+  if (!process.env.AUTH0_CUSTOM_DOMAIN) {
+    console.error('❌ ERROR: AUTH0_CUSTOM_DOMAIN is required for SSO functionality!');
+  }
+  if (!process.env.AUTH0_TENANT_DOMAIN) {
+    console.error('❌ ERROR: AUTH0_TENANT_DOMAIN is required for Management API calls!');
+  }
+});
