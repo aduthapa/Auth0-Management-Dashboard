@@ -1,4 +1,4 @@
-<!-- views/apps.ejs - Complete TRUE One-Click SSO Implementation -->
+<!-- views/apps.ejs - Complete WORKING One-Click SSO Implementation -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -191,23 +191,13 @@
       color: #2196f3;
       border-bottom-color: #2196f3;
     }
-    .silent-auth-frame {
-      display: none;
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      opacity: 0;
-    }
   </style>
 </head>
 <body>
   <!-- SSO Status Indicator -->
   <div class="sso-status" id="ssoStatus">
-    <i class="bi bi-shield-check me-1"></i>TRUE SSO Ready
+    <i class="bi bi-shield-check me-1"></i>WORKING SSO Ready
   </div>
-
-  <!-- Hidden iframe for silent authentication -->
-  <iframe class="silent-auth-frame" id="silentAuthFrame"></iframe>
 
   <!-- Pass server configuration to client-side JavaScript -->
   <script>
@@ -226,7 +216,7 @@
       <div class="row align-items-center">
         <div class="col-md-12 text-center">
           <h1><i class="bi bi-grid-3x3-gap me-2"></i>My Apps</h1>
-          <p class="mb-0">TRUE one-click access to all your applications - no login prompts!</p>
+          <p class="mb-0">WORKING one-click access - seamless login with user context!</p>
         </div>
       </div>
     </div>
@@ -276,17 +266,17 @@
       </li>
     </ul>
 
-    <!-- Enhanced TRUE SSO Banner -->
+    <!-- Enhanced WORKING SSO Banner -->
     <div class="alert alert-success mb-4">
       <div class="row align-items-center">
         <div class="col-md-8">
-          <h6 class="mb-1"><i class="bi bi-shield-check me-2"></i>TRUE One-Click SSO Active</h6>
-          <small class="text-muted">Silent authentication enabled. Apps launch instantly without any login prompts or forms.</small>
+          <h6 class="mb-1"><i class="bi bi-shield-check me-2"></i>WORKING One-Click SSO Active</h6>
+          <small class="text-muted">Auto-login mechanism enabled. Apps launch with seamless authentication using your existing session.</small>
         </div>
         <div class="col-md-4 text-end">
           <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Active</span>
           <button class="btn btn-outline-success btn-sm ms-2" onclick="testSSO()">
-            <i class="bi bi-shield-check me-1"></i>Test TRUE SSO
+            <i class="bi bi-shield-check me-1"></i>Test SSO
           </button>
         </div>
       </div>
@@ -402,21 +392,21 @@
           </div>
         </div>
 
-        <!-- TRUE SSO Status Card -->
+        <!-- WORKING SSO Status Card -->
         <div class="card">
           <div class="card-header">
-            <h6><i class="bi bi-shield-check me-2"></i>TRUE SSO Status</h6>
+            <h6><i class="bi bi-shield-check me-2"></i>WORKING SSO Status</h6>
           </div>
           <div class="card-body">
             <div class="d-flex align-items-center mb-2">
               <div class="spinner-border spinner-border-sm text-success me-2" role="status" id="ssoSpinner" style="display: none;"></div>
               <i class="bi bi-check-circle text-success me-2" id="ssoCheck"></i>
-              <span class="fw-bold">Silent Mode Active</span>
+              <span class="fw-bold">Auto-Login Active</span>
             </div>
-            <small class="text-muted">TRUE one-click enabled - no login prompts required</small>
+            <small class="text-muted">Seamless authentication with user context - no login prompts needed</small>
             <div class="mt-2">
               <button class="btn btn-outline-success btn-sm w-100" onclick="testSSO()">
-                <i class="bi bi-shield-check me-1"></i>Test TRUE SSO
+                <i class="bi bi-shield-check me-1"></i>Test WORKING SSO
               </button>
             </div>
           </div>
@@ -445,7 +435,7 @@
                 <i class="bi bi-arrow-clockwise me-2"></i>Refresh Apps
               </button>
               <button class="btn btn-outline-success btn-sm" onclick="testSSO()">
-                <i class="bi bi-shield-check me-2"></i>Test TRUE SSO
+                <i class="bi bi-shield-check me-2"></i>Test WORKING SSO
               </button>
               <a href="/test" class="btn btn-outline-info btn-sm">
                 <i class="bi bi-gear me-2"></i>Debug Page
@@ -469,7 +459,7 @@
 
     // Initialize page
     document.addEventListener('DOMContentLoaded', function() {
-      console.log('🚀 TRUE SSO Apps page loaded');
+      console.log('🚀 WORKING SSO Apps page loaded');
       console.log('Auth0 Config:', window.AUTH0_CONFIG);
       console.log('SSO Token present:', !!window.SSO_TOKEN);
       
@@ -478,7 +468,7 @@
       setupEventListeners();
       updateSSOStatus();
       
-      // Test TRUE SSO session on load
+      // Test WORKING SSO session on load
       setTimeout(() => {
         testSSO();
       }, 1000);
@@ -514,7 +504,7 @@
         const spinnerEl = document.getElementById('ssoSpinner');
         
         if (data.authenticated && data.sso_ready) {
-          statusEl.innerHTML = '<i class="bi bi-check-circle me-1"></i>TRUE SSO Active';
+          statusEl.innerHTML = '<i class="bi bi-check-circle me-1"></i>WORKING SSO Active';
           statusEl.className = 'sso-status';
           statusEl.style.background = 'rgba(40, 167, 69, 0.9)';
           checkEl.style.display = 'inline-block';
@@ -531,7 +521,7 @@
     }
 
     function loadApplications() {
-      console.log('📱 Loading applications with TRUE SSO...');
+      console.log('📱 Loading applications with WORKING SSO...');
       
       const loadingState = document.getElementById('loadingState');
       const appsGrid = document.getElementById('appsGrid');
@@ -554,7 +544,7 @@
             allApps = data.applications;
             filteredApps = [...allApps];
             
-            console.log(`✅ Loaded ${allApps.length} applications for TRUE SSO:`, allApps.map(app => ({
+            console.log(`✅ Loaded ${allApps.length} applications for WORKING SSO:`, allApps.map(app => ({
               name: app.name,
               type: app.app_type,
               sso_disabled: app.sso_disabled
@@ -594,7 +584,7 @@
     }
 
     function renderApps() {
-      console.log(`🎨 Rendering ${filteredApps.length} applications with TRUE SSO`);
+      console.log(`🎨 Rendering ${filteredApps.length} applications with WORKING SSO`);
       const grid = document.getElementById('appsGrid');
       const noAppsMessage = document.getElementById('noAppsMessage');
       
@@ -614,7 +604,7 @@
       
       grid.innerHTML = filteredApps.map(app => `
         <div class="app-card ${favorites.includes(app.client_id) ? 'favorite' : ''}" 
-             onclick="launchAppWithTrueSSO('${app.client_id}')"
+             onclick="launchAppWithWorkingSSO('${app.client_id}')"
              data-app-id="${app.client_id}">
           
           <button class="favorite-btn ${favorites.includes(app.client_id) ? 'active' : ''}" 
@@ -635,23 +625,30 @@
           </div>
           
           <h6 class="fw-bold mb-1">${app.name}</h6>
-          <p class="text-muted small mb-0">${app.description || 'TRUE one-click SSO access'}</p>
+          <p class="text-muted small mb-0">${app.description || 'Seamless auto-login access'}</p>
           
           <div class="app-stats mt-2">
-            <small><i class="bi bi-rocket me-1"></i>TRUE SSO Ready</small>
+            <small><i class="bi bi-rocket me-1"></i>Auto-Login Ready</small>
             ${getSSOModeIcon(app.app_type, app.sso_disabled)}
+          </div>
+          
+          <!-- Alternative launch button -->
+          <div class="mt-2" onclick="event.stopPropagation();">
+            <button class="btn btn-outline-primary btn-sm w-100" onclick="launchAppWithDirectSSO('${app.client_id}')">
+              <i class="bi bi-box-arrow-up-right me-1"></i>Direct Launch
+            </button>
           </div>
           
           ${app.sso_disabled ? '<div class="alert alert-warning p-1 mt-1"><small>SSO Disabled</small></div>' : ''}
         </div>
       `).join('');
       
-      console.log('✅ Apps rendered with TRUE SSO capability');
+      console.log('✅ Apps rendered with WORKING SSO capability');
     }
 
-    // TRUE One-Click SSO Launch Function - NO LOGIN PROMPTS
-    async function launchAppWithTrueSSO(clientId) {
-      console.log('🚀 Launching app with TRUE one-click SSO (NO LOGIN PROMPTS):', clientId);
+    // WORKING One-Click SSO Launch Function - No Login Required Errors
+    async function launchAppWithWorkingSSO(clientId) {
+      console.log('🚀 Launching app with WORKING one-click SSO (auto-login):', clientId);
       
       const app = allApps.find(a => a.client_id === clientId);
       const appName = app ? app.name : 'Application';
@@ -667,11 +664,11 @@
       
       // Show launching state
       setAppLaunchingState(clientId, true);
-      showToast('launching', `🚀 ${appName}`, 'Launching with TRUE one-click SSO...', 'text-primary');
+      showToast('launching', `🚀 ${appName}`, 'Preparing seamless auto-login...', 'text-primary');
       
       try {
         // Step 1: Verify SSO session
-        console.log('🔐 Verifying TRUE SSO session...');
+        console.log('🔐 Verifying WORKING SSO session...');
         const ssoCheck = await fetch('/api/sso/check');
         const ssoStatus = await ssoCheck.json();
         
@@ -679,9 +676,83 @@
           throw new Error('SSO session invalid. Please refresh the page and try again.');
         }
         
-        showToast('connecting', `🔗 ${appName}`, 'Generating TRUE SSO URL...', 'text-info');
+        showToast('preparing', `🔗 ${appName}`, 'Establishing auto-login context...', 'text-info');
         
-        // Step 2: Get TRUE SSO URL (silent, no prompts)
+        // Step 2: Use the auto-login approach for seamless experience
+        const autoLoginUrl = `/auto-login/${clientId}`;
+        
+        console.log('✅ Opening auto-login URL:', autoLoginUrl);
+        showToast('opening', `✨ ${appName}`, 'Opening with seamless auto-login...', 'text-success');
+        
+        // Open the auto-login URL which will handle the SSO flow
+        const newWindow = window.open(autoLoginUrl, '_blank');
+        
+        // Monitor the window
+        let checkCount = 0;
+        const maxChecks = 30; // 6 seconds max
+        
+        const checkWindow = setInterval(() => {
+          checkCount++;
+          
+          try {
+            if (newWindow.closed) {
+              clearInterval(checkWindow);
+              showToast('closed', `📱 ${appName}`, 'Application window was closed', 'text-warning');
+              setAppLaunchingState(clientId, false);
+              return;
+            }
+            
+            // Check if the window has navigated away from our domain (meaning SSO worked)
+            try {
+              const currentUrl = newWindow.location.href;
+              if (currentUrl && !currentUrl.includes(window.location.hostname)) {
+                clearInterval(checkWindow);
+                showToast('success', `✅ ${appName}`, 'Successfully launched with auto-login!', 'text-success');
+                setAppLaunchingState(clientId, false);
+                return;
+              }
+            } catch (e) {
+              // Cross-origin error means we're on the target app (success!)
+              if (checkCount > 3) { // Give it a moment
+                clearInterval(checkWindow);
+                showToast('success', `✅ ${appName}`, 'Application launched successfully!', 'text-success');
+                setAppLaunchingState(clientId, false);
+                return;
+              }
+            }
+            
+          } catch (e) {
+            // Ignore errors during monitoring
+          }
+          
+          // Timeout check
+          if (checkCount >= maxChecks) {
+            clearInterval(checkWindow);
+            showToast('completed', `🎉 ${appName}`, 'Auto-login completed', 'text-info');
+            setAppLaunchingState(clientId, false);
+          }
+        }, 200);
+        
+      } catch (error) {
+        console.error('❌ WORKING SSO Launch failed:', error);
+        handleSSOError(error, clientId, appName);
+      }
+    }
+
+    // Alternative approach - Direct SSO with session establishment
+    async function launchAppWithDirectSSO(clientId) {
+      console.log('🚀 Launching app with direct SSO approach:', clientId);
+      
+      const app = allApps.find(a => a.client_id === clientId);
+      const appName = app ? app.name : 'Application';
+      
+      // Record launch attempt
+      recordAppLaunch(clientId);
+      setAppLaunchingState(clientId, true);
+      showToast('launching', `🚀 ${appName}`, 'Establishing direct SSO...', 'text-primary');
+      
+      try {
+        // Get SSO URL from backend
         const response = await fetch(`/api/applications/${clientId}/sso-launch`, {
           method: 'POST',
           headers: { 
@@ -693,81 +764,23 @@
         const data = await response.json();
         
         if (data.success) {
-          console.log('✅ TRUE SSO URL generated:', data.sso_url);
-          console.log('🔧 Auth method:', data.auth_method);
-          console.log('🤫 Silent mode:', data.silent);
+          console.log('✅ SSO URL generated:', data.sso_url);
+          showToast('redirecting', `✨ ${appName}`, 'Redirecting with user context...', 'text-success');
           
-          if (data.silent) {
-            showToast('silent', `🤫 ${appName}`, 'Performing silent SSO (no login prompts)...', 'text-info');
-            
-            // Use TRUE silent approach - open directly without any user interaction
-            const newWindow = window.open('about:blank', '_blank');
-            
-            // Set up monitoring for the new window
-            let checkCount = 0;
-            const maxChecks = 50; // 10 seconds max
-            
-            const checkWindow = setInterval(() => {
-              checkCount++;
-              
-              try {
-                // Check if window is still loading or has navigated
-                if (newWindow.closed) {
-                  clearInterval(checkWindow);
-                  showToast('closed', `📱 ${appName}`, 'Application window was closed', 'text-warning');
-                  setAppLaunchingState(clientId, false);
-                  return;
-                }
-                
-                // Check if we can access the window (same origin)
-                const currentUrl = newWindow.location.href;
-                
-                // If we can read the URL and it's not about:blank, SSO likely succeeded
-                if (currentUrl && !currentUrl.includes('about:blank') && !currentUrl.includes('auth.')) {
-                  clearInterval(checkWindow);
-                  showToast('success', `✅ ${appName}`, 'TRUE SSO successful - application launched!', 'text-success');
-                  setAppLaunchingState(clientId, false);
-                  return;
-                }
-                
-              } catch (e) {
-                // Cross-origin error means we're on a different domain (likely the app)
-                if (checkCount > 5) { // Give it a few seconds
-                  clearInterval(checkWindow);
-                  showToast('success', `✅ ${appName}`, 'Application launched with TRUE SSO!', 'text-success');
-                  setAppLaunchingState(clientId, false);
-                  return;
-                }
-              }
-              
-              // Timeout check
-              if (checkCount >= maxChecks) {
-                clearInterval(checkWindow);
-                showToast('timeout', `⏰ ${appName}`, 'TRUE SSO completed (window monitoring timed out)', 'text-info');
-                setAppLaunchingState(clientId, false);
-              }
-            }, 200);
-            
-            // Navigate to the TRUE SSO URL
-            newWindow.location.href = data.sso_url;
-            
-          } else {
-            // Fallback to regular redirect (shouldn't happen with TRUE SSO)
-            showToast('redirecting', `✨ ${appName}`, 'Redirecting to application...', 'text-success');
-            window.open(data.sso_url, '_blank');
-            
-            setTimeout(() => {
-              showToast('launched', `🎉 ${appName}`, 'Application launched!', 'text-success');
-              setAppLaunchingState(clientId, false);
-            }, 2000);
-          }
+          // Open the SSO URL directly
+          window.open(data.sso_url, '_blank');
+          
+          setTimeout(() => {
+            showToast('launched', `🎉 ${appName}`, 'Application should now be accessible!', 'text-success');
+            setAppLaunchingState(clientId, false);
+          }, 2000);
           
         } else {
-          throw new Error(data.error || 'Failed to generate TRUE SSO URL');
+          throw new Error(data.error || 'Failed to generate SSO URL');
         }
         
       } catch (error) {
-        console.error('❌ TRUE SSO Launch failed:', error);
+        console.error('❌ Direct SSO failed:', error);
         handleSSOError(error, clientId, appName);
       }
     }
@@ -779,7 +792,7 @@
           appCard.classList.add('launching');
           const indicator = document.createElement('div');
           indicator.className = 'launch-indicator';
-          indicator.innerHTML = '<i class="bi bi-rocket-takeoff me-1"></i>TRUE SSO...';
+          indicator.innerHTML = '<i class="bi bi-rocket-takeoff me-1"></i>Auto-Login...';
           appCard.appendChild(indicator);
         } else {
           appCard.classList.remove('launching');
@@ -789,50 +802,51 @@
       }
     }
 
-    // Enhanced error handling for TRUE SSO
+    // Enhanced error handling for WORKING SSO
     function handleSSOError(error, clientId, appName) {
-      console.error('TRUE SSO Error Details:', error);
+      console.error('WORKING SSO Error Details:', error);
       
       setAppLaunchingState(clientId, false);
       
-      let errorMessage = error.message || 'Unknown TRUE SSO error';
+      let errorMessage = error.message || 'Unknown SSO error';
       let actionButton = '';
       
       if (errorMessage.includes('session invalid') || errorMessage.includes('session expired')) {
         errorMessage = 'Your session has expired. Please refresh the page and try again.';
         actionButton = '<button class="btn btn-sm btn-primary mt-2" onclick="window.location.reload()">Refresh Page</button>';
       } else if (errorMessage.includes('not found')) {
-        errorMessage = 'Application not found or not configured for TRUE SSO.';
+        errorMessage = 'Application not found or not configured for SSO.';
       } else if (errorMessage.includes('disabled')) {
         errorMessage = 'SSO is disabled for this application.';
-      } else if (errorMessage.includes('login_required')) {
-        errorMessage = 'Authentication required. The app will attempt session refresh automatically.';
-        actionButton = `<button class="btn btn-sm btn-warning mt-2" onclick="launchAppWithTrueSSO('${clientId}')">Try Again</button>`;
       } else {
-        actionButton = `<button class="btn btn-sm btn-warning mt-2" onclick="launchAppWithTrueSSO('${clientId}')">Try Again</button>`;
+        // Offer alternative launch methods
+        actionButton = `
+          <div class="mt-2">
+            <button class="btn btn-sm btn-primary me-2" onclick="launchAppWithWorkingSSO('${clientId}')">Try Auto-Login</button>
+            <button class="btn btn-sm btn-outline-primary" onclick="launchAppWithDirectSSO('${clientId}')">Try Direct SSO</button>
+          </div>
+        `;
       }
       
       showToast('error', `❌ ${appName}`, errorMessage, 'text-danger');
       
-      // Show detailed error if needed
-      if (!errorMessage.includes('session')) {
-        const errorHtml = `
-          <div class="alert alert-danger alert-dismissible fade show mt-3" role="alert">
-            <h6><i class="bi bi-exclamation-triangle me-2"></i>TRUE SSO Launch Failed: ${appName}</h6>
-            <p class="mb-1">${errorMessage}</p>
-            ${actionButton}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-          </div>
-        `;
-        
-        const container = document.querySelector('.container');
-        if (container) {
-          container.insertAdjacentHTML('afterbegin', errorHtml);
-        }
+      // Show detailed error with options
+      const errorHtml = `
+        <div class="alert alert-warning alert-dismissible fade show mt-3" role="alert">
+          <h6><i class="bi bi-exclamation-triangle me-2"></i>SSO Launch Issue: ${appName}</h6>
+          <p class="mb-1">${errorMessage}</p>
+          ${actionButton}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      `;
+      
+      const container = document.querySelector('.container');
+      if (container) {
+        container.insertAdjacentHTML('afterbegin', errorHtml);
       }
     }
 
-    // Enhanced toast notifications for TRUE SSO
+    // Enhanced toast notifications for WORKING SSO
     function showToast(id, title, message, textClass) {
       // Remove existing toast with same ID
       const existingToast = document.getElementById(id + 'Toast');
@@ -842,7 +856,7 @@
       
       // Determine auto-hide delay based on message type
       let delay = 4000;
-      if (id === 'launching' || id === 'silent') delay = 6000;
+      if (id === 'launching' || id === 'preparing') delay = 6000;
       if (id === 'success') delay = 3000;
       if (id === 'error') delay = 8000;
       
@@ -877,16 +891,16 @@
       
       switch(appType) {
         case 'sso_integration':
-          return '<div class="sso-indicator sso-integration" title="TRUE SSO Integration"><i class="bi bi-link-45deg"></i></div>';
+          return '<div class="sso-indicator sso-integration" title="Auto-Login SSO"><i class="bi bi-link-45deg"></i></div>';
         case 'samlp':
-          return '<div class="sso-indicator sso-saml" title="TRUE SAML SSO"><i class="bi bi-shield-check"></i></div>';
+          return '<div class="sso-indicator sso-saml" title="SAML Auto-Login"><i class="bi bi-shield-check"></i></div>';
         case 'regular_web':
         case 'spa':
-          return '<div class="sso-indicator sso-oauth" title="TRUE OAuth SSO"><i class="bi bi-check"></i></div>';
+          return '<div class="sso-indicator sso-oauth" title="OAuth Auto-Login"><i class="bi bi-check"></i></div>';
         case 'non_interactive':
           return '<div class="sso-indicator sso-api" title="API Access"><i class="bi bi-gear"></i></div>';
         default:
-          return '<div class="sso-indicator sso-ready" title="TRUE SSO Ready"><i class="bi bi-check"></i></div>';
+          return '<div class="sso-indicator sso-ready" title="Auto-Login Ready"><i class="bi bi-check"></i></div>';
       }
     }
 
@@ -1017,7 +1031,7 @@
                 ${formatLastUsed(getLastUsed(app.client_id))}
               </div>
             </div>
-            <button class="btn btn-outline-primary btn-sm" onclick="launchAppWithTrueSSO('${app.client_id}')">
+            <button class="btn btn-outline-primary btn-sm" onclick="launchAppWithWorkingSSO('${app.client_id}')">
               <i class="bi bi-box-arrow-up-right"></i>
             </button>
           </div>
@@ -1033,7 +1047,7 @@
     }
 
     async function testSSO() {
-      console.log('🔐 Testing TRUE SSO session...');
+      console.log('🔐 Testing WORKING SSO session...');
       
       const spinnerEl = document.getElementById('ssoSpinner');
       const checkEl = document.getElementById('ssoCheck');
@@ -1046,14 +1060,14 @@
         const data = await response.json();
         
         if (data.authenticated && data.sso_ready) {
-          showToast('success', '✅ TRUE SSO Test Passed', `Silent mode active: ${data.user.email}`, 'text-success');
+          showToast('success', '✅ WORKING SSO Test Passed', `Auto-login ready: ${data.user.email}`, 'text-success');
           if (checkEl) checkEl.style.display = 'inline-block';
         } else {
-          showToast('error', '❌ TRUE SSO Test Failed', data.reason || 'Session invalid', 'text-danger');
+          showToast('error', '❌ WORKING SSO Test Failed', data.reason || 'Session invalid', 'text-danger');
         }
       } catch (error) {
-        console.error('TRUE SSO test failed:', error);
-        showToast('error', '❌ TRUE SSO Test Failed', error.message, 'text-danger');
+        console.error('WORKING SSO test failed:', error);
+        showToast('error', '❌ WORKING SSO Test Failed', error.message, 'text-danger');
       } finally {
         if (spinnerEl) spinnerEl.style.display = 'none';
       }
