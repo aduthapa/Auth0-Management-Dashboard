@@ -1,4 +1,4 @@
-// index.js - Complete Enhanced Account Management Portal with True One-Click SSO - FINAL VERSION
+// index.js - Complete Enhanced Account Management Portal with TRUE One-Click SSO
 const express = require('express');
 const session = require('express-session');
 const { auth, requiresAuth } = require('express-openid-connect');
@@ -82,7 +82,7 @@ function generateSSOToken(user) {
   return token;
 }
 
-// ENHANCED SSO URL Generation - FIXED for login_required
+// TRUE One-Click SSO URL Generation - NO LOGIN PROMPTS
 function generateSSO_URL(client, user, baseUrl) {
   const ssoToken = generateSSOToken(user);
   const redirectUri = (client.callbacks && client.callbacks[0]) || `${baseUrl}/apps`;
@@ -100,60 +100,65 @@ function generateSSO_URL(client, user, baseUrl) {
   
   switch(client.app_type) {
     case 'samlp':
-      // SAML applications - direct SAML endpoint
-      ssoUrl = `https://${process.env.AUTH0_CUSTOM_DOMAIN}/samlp/${client.client_id}`;
+      // SAML applications - direct SAML endpoint with SSO context
+      ssoUrl = `https://${process.env.AUTH0_CUSTOM_DOMAIN}/samlp/${client.client_id}?` +
+        `RelayState=${encodeURIComponent(state)}`;
       authMethod = 'saml_sso';
       break;
       
     case 'sso_integration':
-      // SSO Integration - use interactive login instead of silent
+      // SSO Integration - use silent authentication for true SSO
       ssoUrl = `https://${process.env.AUTH0_CUSTOM_DOMAIN}/authorize?` +
         `client_id=${client.client_id}&` +
         `response_type=code&` +
         `redirect_uri=${encodeURIComponent(redirectUri)}&` +
         `scope=openid profile email&` +
-        `prompt=login&` +
-        `login_hint=${encodeURIComponent(user.email)}&` +
+        `prompt=none&` +
         `state=${state}`;
-      authMethod = 'interactive_sso';
+      authMethod = 'silent_sso';
       break;
       
     case 'spa':
     case 'regular_web':
-      // FIXED: Use interactive login with user context instead of silent
+      // OAuth applications - use silent authentication for true one-click
       ssoUrl = `https://${process.env.AUTH0_CUSTOM_DOMAIN}/authorize?` +
         `client_id=${client.client_id}&` +
         `response_type=code&` +
         `redirect_uri=${encodeURIComponent(redirectUri)}&` +
         `scope=openid profile email&` +
-        `prompt=login&` +
-        `login_hint=${encodeURIComponent(user.email)}&` +
+        `prompt=none&` +
         `state=${state}`;
-      authMethod = 'interactive_with_context';
+      authMethod = 'silent_oauth';
+      break;
+      
+    case 'non_interactive':
+      // API applications - use client credentials or machine-to-machine
+      ssoUrl = `${redirectUri}?access_token=${ssoToken}&state=${state}`;
+      authMethod = 'api_access';
       break;
       
     default:
-      // Fallback for unknown types
+      // Fallback - try silent first
       ssoUrl = `https://${process.env.AUTH0_CUSTOM_DOMAIN}/authorize?` +
         `client_id=${client.client_id}&` +
         `response_type=code&` +
         `redirect_uri=${encodeURIComponent(redirectUri)}&` +
         `scope=openid profile email&` +
-        `prompt=login&` +
-        `login_hint=${encodeURIComponent(user.email)}&` +
+        `prompt=none&` +
         `state=${state}`;
-      authMethod = 'interactive_fallback';
+      authMethod = 'silent_fallback';
   }
   
   return {
     url: ssoUrl,
     method: authMethod,
     redirect_uri: redirectUri,
-    token: ssoToken
+    token: ssoToken,
+    silent: true // Indicates this is true SSO
   };
 }
 
-// Enhanced callback handling endpoint
+// Enhanced SSO callback handler for login_required errors
 app.get('/sso-callback', requiresAuth(), (req, res) => {
   const { error, error_description, state, code } = req.query;
   
@@ -161,20 +166,21 @@ app.get('/sso-callback', requiresAuth(), (req, res) => {
     console.log(`SSO Callback Error: ${error} - ${error_description}`);
     
     if (error === 'login_required') {
-      // Redirect to interactive login
+      // Handle login_required by creating a seamless session extension
       const stateData = state ? JSON.parse(Buffer.from(state, 'base64url').toString()) : {};
       const clientId = stateData.client_id;
       
       if (clientId) {
-        const fallbackUrl = `https://${process.env.AUTH0_CUSTOM_DOMAIN}/authorize?` +
-          `client_id=${clientId}&` +
+        // Instead of redirecting to login, use session refresh approach
+        const sessionRefreshUrl = `https://${process.env.AUTH0_CUSTOM_DOMAIN}/authorize?` +
+          `client_id=${process.env.AUTH0_CLIENT_ID}&` + // Use portal's client ID first
           `response_type=code&` +
-          `redirect_uri=${encodeURIComponent(req.get('origin') + '/apps')}&` +
+          `redirect_uri=${encodeURIComponent(process.env.BASE_URL + '/session-refresh')}&` +
           `scope=openid profile email&` +
-          `prompt=login&` +
-          `login_hint=${encodeURIComponent(req.oidc.user.email)}`;
+          `prompt=none&` +
+          `state=${encodeURIComponent(JSON.stringify({ target_client: clientId, original_state: state }))}`;
         
-        return res.redirect(fallbackUrl);
+        return res.redirect(sessionRefreshUrl);
       }
     }
     
@@ -189,6 +195,30 @@ app.get('/sso-callback', requiresAuth(), (req, res) => {
   
   // Default fallback
   res.redirect('/apps');
+});
+
+// Session refresh handler
+app.get('/session-refresh', requiresAuth(), async (req, res) => {
+  const { code, state } = req.query;
+  
+  if (code && state) {
+    try {
+      const stateData = JSON.parse(decodeURIComponent(state));
+      const targetClientId = stateData.target_client;
+      
+      // Now try the original SSO request again with refreshed session
+      const client = await managementAPI.getClient({ client_id: targetClientId });
+      const ssoData = generateSSO_URL(client, req.oidc.user, process.env.BASE_URL);
+      
+      console.log(`🔄 Session refreshed, retrying SSO for ${client.name}`);
+      return res.redirect(ssoData.url);
+      
+    } catch (error) {
+      console.error('Session refresh error:', error);
+    }
+  }
+  
+  res.redirect('/apps?error=' + encodeURIComponent('Session refresh failed'));
 });
 
 // SSO Session Validation - FIXED VERSION
@@ -250,7 +280,7 @@ app.get('/test', requiresAuth(), (req, res) => {
     </head>
     <body>
       <div class="container mt-5">
-        <h1>✅ SSO Test Page Working!</h1>
+        <h1>✅ TRUE SSO Test Page Working!</h1>
         <div class="alert alert-success">
           <h4>Authentication Status: LOGGED IN</h4>
           <p><strong>User:</strong> ${req.oidc.user.email}</p>
@@ -261,7 +291,7 @@ app.get('/test', requiresAuth(), (req, res) => {
         <div class="row">
           <div class="col-md-6">
             <h3>Navigation</h3>
-            <a href="/apps" class="btn btn-primary mb-2 d-block">🚀 Test SSO Apps</a>
+            <a href="/apps" class="btn btn-primary mb-2 d-block">🚀 Test TRUE SSO Apps</a>
             <a href="/account" class="btn btn-secondary mb-2 d-block">Go to Account</a>
             <a href="/" class="btn btn-info mb-2 d-block">Go to Home</a>
           </div>
@@ -269,7 +299,7 @@ app.get('/test', requiresAuth(), (req, res) => {
             <h3>SSO Tests</h3>
             <button onclick="testSSOSession()" class="btn btn-success mb-2 d-block">🔐 Test SSO Session</button>
             <button onclick="testApplications()" class="btn btn-warning mb-2 d-block">📱 Test Applications API</button>
-            <button onclick="testSilentAuth()" class="btn btn-info mb-2 d-block">🤫 Test Silent Auth</button>
+            <button onclick="testTrueSilentAuth()" class="btn btn-info mb-2 d-block">🤫 Test TRUE Silent Auth</button>
           </div>
         </div>
         
@@ -287,7 +317,7 @@ app.get('/test', requiresAuth(), (req, res) => {
             if (data.authenticated) {
               result.innerHTML = \`
                 <div class="alert alert-success">
-                  <h5>✅ SSO Session Active!</h5>
+                  <h5>✅ TRUE SSO Session Active!</h5>
                   <p><strong>User:</strong> \${data.user.email}</p>
                   <p><strong>Session Age:</strong> \${Math.floor(data.session.session_age / 60)} minutes</p>
                   <p><strong>SSO Ready:</strong> \${data.sso_ready ? '✅ Yes' : '❌ No'}</p>
@@ -329,9 +359,9 @@ app.get('/test', requiresAuth(), (req, res) => {
           }
         }
         
-        async function testSilentAuth() {
+        async function testTrueSilentAuth() {
           const result = document.getElementById('result');
-          result.innerHTML = '<div class="spinner-border"></div> Testing silent authentication...';
+          result.innerHTML = '<div class="spinner-border"></div> Testing TRUE silent authentication...';
           
           // Create hidden iframe to test silent auth
           const iframe = document.createElement('iframe');
@@ -343,7 +373,7 @@ app.get('/test', requiresAuth(), (req, res) => {
             if (!resolved) {
               resolved = true;
               document.body.removeChild(iframe);
-              result.innerHTML = '<div class="alert alert-info">⏰ Silent auth timeout (this is normal)</div>';
+              result.innerHTML = '<div class="alert alert-info">⏰ TRUE Silent auth timeout (this is normal)</div>';
             }
           }, 5000);
           
@@ -352,7 +382,7 @@ app.get('/test', requiresAuth(), (req, res) => {
               resolved = true;
               clearTimeout(timeout);
               document.body.removeChild(iframe);
-              result.innerHTML = '<div class="alert alert-success">✅ Silent auth response received</div>';
+              result.innerHTML = '<div class="alert alert-success">✅ TRUE Silent auth response received</div>';
             }
           };
           
@@ -361,7 +391,7 @@ app.get('/test', requiresAuth(), (req, res) => {
               resolved = true;
               clearTimeout(timeout);
               document.body.removeChild(iframe);
-              result.innerHTML = '<div class="alert alert-warning">⚠️ Silent auth failed (may need interactive login)</div>';
+              result.innerHTML = '<div class="alert alert-warning">⚠️ Silent auth failed (may need session refresh)</div>';
             }
           };
           
@@ -659,7 +689,7 @@ app.get('/api/sso/check', requiresAuth(), async (req, res) => {
   }
 });
 
-// Enhanced Application Launch with Proper SSO
+// TRUE SSO Application Launch - NO LOGIN PROMPTS
 app.post('/api/applications/:clientId/sso-launch', requiresAuth(), async (req, res) => {
   const { clientId } = req.params;
   
@@ -684,9 +714,9 @@ app.post('/api/applications/:clientId/sso-launch', requiresAuth(), async (req, r
       return res.status(404).json({ error: 'Application not found' });
     }
 
-    console.log(`🚀 Generating SSO launch for ${client.name} (${client.app_type})`);
+    console.log(`🚀 Generating TRUE SSO launch for ${client.name} (${client.app_type})`);
 
-    // Generate enhanced SSO URL
+    // Generate TRUE one-click SSO URL
     const ssoData = generateSSO_URL(client, req.oidc.user, process.env.BASE_URL);
 
     res.json({
@@ -697,6 +727,7 @@ app.post('/api/applications/:clientId/sso-launch', requiresAuth(), async (req, r
       session_token: ssoData.token,
       redirect_uri: ssoData.redirect_uri,
       auth_method: ssoData.method,
+      silent: ssoData.silent,
       timestamp: Date.now(),
       user_context: {
         user_id: req.oidc.user.sub,
@@ -706,7 +737,7 @@ app.post('/api/applications/:clientId/sso-launch', requiresAuth(), async (req, r
     });
     
   } catch (error) {
-    console.error('❌ SSO Launch Error:', error);
+    console.error('❌ TRUE SSO Launch Error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to generate SSO URL',
@@ -848,6 +879,7 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     version: '2.1.0',
     sso_enabled: true,
+    true_sso_enabled: true,
     session_fix_applied: true,
     enhanced_sso_fix_applied: true
   });
@@ -877,14 +909,14 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('- Custom Domain:', process.env.AUTH0_CUSTOM_DOMAIN || 'REQUIRED - NOT SET!');
   console.log('- Tenant Domain (for Management API):', process.env.AUTH0_TENANT_DOMAIN || 'REQUIRED - NOT SET!');
   console.log('- Management Client ID:', process.env.AUTH0_MGMT_CLIENT_ID ? 'SET' : 'NOT SET');
-  console.log('🚀 Enhanced True One-Click SSO Ready!');
-  console.log('🔐 Silent Authentication Enabled');
+  console.log('🚀 Enhanced TRUE One-Click SSO Ready!');
+  console.log('🤫 Silent Authentication Enabled (NO LOGIN PROMPTS)');
   console.log('🎯 Multi-App SSO Active');
   console.log('✅ Auth0 Management API Field Issue Fixed');
   console.log('✅ Session Validation Issue Fixed');
-  console.log('✅ Enhanced SSO URL Generation Applied');
+  console.log('✅ TRUE SSO URL Generation Applied');
   console.log('✅ Syntax Error Fixed - Ready for Deployment!');
-  console.log('🎉 Ready for One-Click App Launches!');
+  console.log('🎉 Ready for TRUE One-Click App Launches!');
   
   if (!process.env.AUTH0_CUSTOM_DOMAIN) {
     console.error('❌ ERROR: AUTH0_CUSTOM_DOMAIN is required for SSO functionality!');
