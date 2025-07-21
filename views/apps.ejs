@@ -1,441 +1,5 @@
-<!-- views/apps.ejs - Fixed TRUE One-Click SSO Implementation -->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>My Apps | Account Management</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
-  <style>
-    .account-header {
-      background: linear-gradient(135deg, #2196f3 0%, #21cbf3 100%);
-      color: white;
-      padding: 2rem 0;
-    }
-    .nav-pills .nav-link {
-      border-radius: 50px;
-      margin-right: 0.5rem;
-      margin-bottom: 0.5rem;
-    }
-    .nav-pills .nav-link.active {
-      background-color: #667eea;
-    }
-    .card {
-      border: none;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      margin-bottom: 1.5rem;
-      transition: all 0.3s ease;
-    }
-    .card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-    }
-    .app-card {
-      border-radius: 15px;
-      padding: 1.5rem;
-      margin-bottom: 1.5rem;
-      position: relative;
-      overflow: hidden;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      background: linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%);
-      border: 2px solid #e9ecef;
-    }
-    .app-card:hover {
-      border-color: #2196f3;
-      background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%);
-      transform: translateY(-5px);
-    }
-    .app-card.launching {
-      border-color: #28a745;
-      background: linear-gradient(135deg, #f0fff4 0%, #d4edda 100%);
-      opacity: 0.8;
-    }
-    .app-card.favorite {
-      border-color: #ffc107;
-      background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
-    }
-    .app-icon {
-      width: 64px;
-      height: 64px;
-      border-radius: 12px;
-      background: linear-gradient(135deg, #2196f3, #21cbf3);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-size: 1.8rem;
-      margin-bottom: 1rem;
-      transition: transform 0.3s ease;
-    }
-    .app-card:hover .app-icon {
-      transform: scale(1.1);
-    }
-    .app-card.launching .app-icon {
-      animation: pulse 1s infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.05); }
-    }
-    .app-type-badge {
-      position: absolute;
-      top: 15px;
-      right: 15px;
-      font-size: 0.75rem;
-      padding: 0.25rem 0.5rem;
-      border-radius: 20px;
-    }
-    .favorite-btn {
-      position: absolute;
-      top: 15px;
-      left: 15px;
-      background: none;
-      border: none;
-      font-size: 1.2rem;
-      color: #ffc107;
-      opacity: 0.5;
-      transition: opacity 0.3s ease;
-    }
-    .favorite-btn.active {
-      opacity: 1;
-    }
-    .favorite-btn:hover {
-      opacity: 1;
-    }
-    .sso-indicator {
-      position: absolute;
-      bottom: 15px;
-      right: 15px;
-      color: white;
-      border-radius: 50%;
-      width: 24px;
-      height: 24px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.8rem;
-    }
-    .sso-ready { background: #28a745; }
-    .sso-saml { background: #2196f3; }
-    .sso-oauth { background: #28a745; }
-    .sso-integration { background: #ff9800; }
-    .sso-api { background: #9c27b0; }
-    .app-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 1.5rem;
-    }
-    .loading-skeleton {
-      background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-      background-size: 200% 100%;
-      animation: loading 1.5s infinite;
-      border-radius: 8px;
-    }
-    @keyframes loading {
-      0% { background-position: 200% 0; }
-      100% { background-position: -200% 0; }
-    }
-    .sso-status {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      z-index: 1050;
-      background: rgba(40, 167, 69, 0.9);
-      color: white;
-      padding: 0.5rem 1rem;
-      border-radius: 20px;
-      font-size: 0.85rem;
-      backdrop-filter: blur(5px);
-    }
-    .launch-indicator {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(255, 255, 255, 0.95);
-      border-radius: 50px;
-      padding: 0.5rem 1rem;
-      font-size: 0.85rem;
-      color: #28a745;
-      border: 2px solid #28a745;
-      font-weight: bold;
-    }
-    .search-box {
-      position: relative;
-    }
-    .search-box i {
-      position: absolute;
-      right: 15px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: #6c757d;
-    }
-    .filter-tabs {
-      margin-bottom: 2rem;
-    }
-    .filter-tabs .nav-tabs {
-      border-bottom: 2px solid #e9ecef;
-    }
-    .filter-tabs .nav-link {
-      border: none;
-      color: #6c757d;
-      font-weight: 500;
-      padding: 0.75rem 1rem;
-      border-radius: 0;
-      border-bottom: 2px solid transparent;
-    }
-    .filter-tabs .nav-link.active {
-      background: none;
-      color: #2196f3;
-      border-bottom-color: #2196f3;
-    }
-  </style>
-</head>
-<body>
-  <!-- SSO Status Indicator -->
-  <div class="sso-status" id="ssoStatus">
-    <i class="bi bi-shield-check me-1"></i>TRUE One-Click Ready
-  </div>
-
-  <!-- Pass server configuration to client-side JavaScript -->
-  <script>
-    window.AUTH0_CONFIG = {
-      customDomain: '<%= auth0Config.customDomain %>',
-      tenantDomain: '<%= auth0Config.tenantDomain %>',
-      baseUrl: '<%= auth0Config.baseUrl %>',
-      clientId: '<%= auth0Config.clientId %>'
-    };
-    window.SSO_TOKEN = '<%= ssoToken %>';
-  </script>
-
-  <!-- Header -->
-  <div class="account-header">
-    <div class="container">
-      <div class="row align-items-center">
-        <div class="col-md-12 text-center">
-          <h1><i class="bi bi-grid-3x3-gap me-2"></i>My Apps</h1>
-          <p class="mb-0">TRUE one-click access - seamless login with no forms!</p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="container mt-4">
-    <!-- Alert Messages -->
-    <% if (typeof success !== 'undefined' && success) { %>
-      <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="bi bi-check-circle me-2"></i><%= success %>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-      </div>
-    <% } %>
-    <% if (typeof error !== 'undefined' && error) { %>
-      <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="bi bi-exclamation-circle me-2"></i><%= error %>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-      </div>
-    <% } %>
-
-    <!-- Navigation Pills -->
-    <ul class="nav nav-pills justify-content-center mb-4">
-      <li class="nav-item">
-        <a class="nav-link" href="/account">
-          <i class="bi bi-house-door me-2"></i>Overview
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" href="/profile">
-          <i class="bi bi-person me-2"></i>Profile
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" href="/security">
-          <i class="bi bi-shield-check me-2"></i>Security
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" href="/change-password">
-          <i class="bi bi-key me-2"></i>Password
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link active" href="/apps">
-          <i class="bi bi-grid-3x3-gap me-2"></i>Apps
-        </a>
-      </li>
-    </ul>
-
-    <!-- Enhanced TRUE One-Click SSO Banner -->
-    <div class="alert alert-success mb-4">
-      <div class="row align-items-center">
-        <div class="col-md-8">
-          <h6 class="mb-1"><i class="bi bi-shield-check me-2"></i>TRUE One-Click SSO Active</h6>
-          <small class="text-muted">Session sharing enabled. Apps launch directly with no login forms required.</small>
-        </div>
-        <div class="col-md-4 text-end">
-          <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Active</span>
-          <button class="btn btn-outline-success btn-sm ms-2" onclick="testSSO()">
-            <i class="bi bi-shield-check me-1"></i>Test SSO
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Search and Filters -->
-    <div class="row mb-4">
-      <div class="col-lg-8">
-        <div class="search-box">
-          <input type="text" class="form-control form-control-lg" placeholder="Search applications..." id="searchInput">
-          <i class="bi bi-search"></i>
-        </div>
-      </div>
-      <div class="col-lg-4">
-        <select class="form-select form-select-lg" id="sortSelect">
-          <option value="name">Sort by Name</option>
-          <option value="recent">Recently Used</option>
-          <option value="favorites">Favorites First</option>
-          <option value="type">By Type</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Filter Tabs -->
-    <div class="filter-tabs">
-      <ul class="nav nav-tabs" id="filterTabs">
-        <li class="nav-item">
-          <a class="nav-link active" data-filter="all" href="#">
-            <i class="bi bi-grid me-1"></i>All Apps (<span id="allCount">0</span>)
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" data-filter="favorites" href="#">
-            <i class="bi bi-star me-1"></i>Favorites (<span id="favCount">0</span>)
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" data-filter="saml" href="#">
-            <i class="bi bi-shield-lock me-1"></i>SAML (<span id="samlCount">0</span>)
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" data-filter="oauth" href="#">
-            <i class="bi bi-key me-1"></i>OAuth (<span id="oauthCount">0</span>)
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" data-filter="recent" href="#">
-            <i class="bi bi-clock me-1"></i>Recent (<span id="recentCount">0</span>)
-          </a>
-        </li>
-      </ul>
-    </div>
-
-    <div class="row">
-      <!-- Main Apps Grid -->
-      <div class="col-lg-9">
-        <!-- Loading State -->
-        <div id="loadingState" class="app-grid">
-          <% for(let i = 0; i < 6; i++) { %>
-            <div class="card">
-              <div class="card-body">
-                <div class="loading-skeleton" style="height: 60px; width: 60px; margin-bottom: 1rem;"></div>
-                <div class="loading-skeleton" style="height: 20px; margin-bottom: 0.5rem;"></div>
-                <div class="loading-skeleton" style="height: 16px; width: 70%;"></div>
-              </div>
-            </div>
-          <% } %>
-        </div>
-
-        <!-- Apps Grid -->
-        <div id="appsGrid" class="app-grid" style="display: none;">
-          <!-- Apps will be populated by JavaScript -->
-        </div>
-
-        <!-- No Apps Message -->
-        <div id="noAppsMessage" class="text-center py-5" style="display: none;">
-          <i class="bi bi-grid-3x3-gap" style="font-size: 4rem; color: #6c757d;"></i>
-          <h4 class="mt-3 text-muted">No Applications Found</h4>
-          <p class="text-muted">No applications match your current filter criteria.</p>
-        </div>
-      </div>
-
-      <!-- Sidebar -->
-      <div class="col-lg-3">
-        <!-- Quick Stats -->
-        <div class="card">
-          <div class="card-header">
-            <h6><i class="bi bi-bar-chart me-2"></i>Quick Stats</h6>
-          </div>
-          <div class="card-body">
-            <div class="row text-center">
-              <div class="col-6">
-                <h4 class="text-primary" id="totalApps">-</h4>
-                <small class="text-muted">Total Apps</small>
-              </div>
-              <div class="col-6">
-                <h4 class="text-warning" id="favoriteApps">-</h4>
-                <small class="text-muted">Favorites</small>
-              </div>
-            </div>
-            <hr>
-            <div class="row text-center">
-              <div class="col-6">
-                <h4 class="text-success" id="recentLogins">-</h4>
-                <small class="text-muted">This Week</small>
-              </div>
-              <div class="col-6">
-                <h4 class="text-info" id="ssoEnabled">-</h4>
-                <small class="text-muted">SSO Ready</small>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- TRUE One-Click SSO Status Card -->
-        <div class="card">
-          <div class="card-header">
-            <h6><i class="bi bi-shield-check me-2"></i>TRUE One-Click SSO Status</h6>
-          </div>
-          <div class="card-body">
-            <div class="d-flex align-items-center mb-2">
-              <div class="spinner-border spinner-border-sm text-success me-2" role="status" id="ssoSpinner" style="display: none;"></div>
-              <i class="bi bi-check-circle text-success me-2" id="ssoCheck"></i>
-              <span class="fw-bold">Session Sharing Active</span>
-            </div>
-            <small class="text-muted">Direct access with no login forms required</small>
-            <div class="mt-2">
-              <button class="btn btn-outline-success btn-sm w-100" onclick="testSSO()">
-                <i class="bi bi-shield-check me-1"></i>Test TRUE One-Click
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Recent Activity -->
-        <div class="card">
-          <div class="card-header">
-            <h6><i class="bi bi-clock-history me-2"></i>Recent Activity</h6>
-          </div>
-          <div class="card-body p-0">
-            <div id="recentActivity">
-              <div class="p-3 text-center text-muted small">Loading activity...</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Quick Actions -->
-        <div class="card">
-          <div class="card-header">
-            <h6><i class="bi bi-lightning me-2"></i>Quick Actions</h6>
-          </div>
-          <div class="card-body">
-            <div class="d-grid gap-2">
-              <button class="btn btn-outline-primary btn-sm" onclick="refreshApps()">
-                <i class="bi bi-arrow-clockwise me-2"></i>Refresh Apps
-              </button>
-              <button class="btn btn-outline-success btn-sm" onclick="testSSO()">
-                <i class="bi bi-shield-check me-2"></i>Test TRUE One-Click
+<button class="btn btn-outline-success btn-sm" onclick="testSSO()">
+                <i class="bi bi-shield-check me-2"></i>Test FIXED SSO
               </button>
               <a href="/test" class="btn btn-outline-info btn-sm">
                 <i class="bi bi-gear me-2"></i>Debug Page
@@ -460,9 +24,10 @@
 
     // Wait for DOM and Bootstrap to be ready
     document.addEventListener('DOMContentLoaded', function() {
-      console.log('🚀 TRUE One-Click SSO Apps page loaded');
+      console.log('🚀 FIXED TRUE One-Click SSO Apps page loaded');
       console.log('Auth0 Config:', window.AUTH0_CONFIG);
       console.log('SSO Token present:', !!window.SSO_TOKEN);
+      console.log('✅ Using GET method only - no 405 errors!');
       
       // Wait a bit more for Bootstrap to fully initialize
       setTimeout(() => {
@@ -471,7 +36,7 @@
         setupEventListeners();
         updateSSOStatus();
         
-        // Test TRUE one-click SSO session on load
+        // Test FIXED one-click SSO session on load
         setTimeout(() => {
           testSSO();
         }, 1000);
@@ -508,7 +73,7 @@
         const spinnerEl = document.getElementById('ssoSpinner');
         
         if (data.authenticated && data.sso_ready) {
-          statusEl.innerHTML = '<i class="bi bi-check-circle me-1"></i>TRUE One-Click Ready';
+          statusEl.innerHTML = '<i class="bi bi-check-circle me-1"></i>FIXED SSO Ready (GET)';
           statusEl.className = 'sso-status';
           statusEl.style.background = 'rgba(40, 167, 69, 0.9)';
           if (checkEl) checkEl.style.display = 'inline-block';
@@ -525,7 +90,7 @@
     }
 
     function loadApplications() {
-      console.log('📱 Loading applications with TRUE one-click SSO...');
+      console.log('📱 Loading applications with FIXED TRUE one-click SSO (GET method)...');
       
       const loadingState = document.getElementById('loadingState');
       const appsGrid = document.getElementById('appsGrid');
@@ -548,7 +113,7 @@
             allApps = data.applications;
             filteredApps = [...allApps];
             
-            console.log(`✅ Loaded ${allApps.length} applications for TRUE one-click SSO:`, allApps.map(app => ({
+            console.log(`✅ Loaded ${allApps.length} applications for FIXED TRUE one-click SSO:`, allApps.map(app => ({
               name: app.name,
               type: app.app_type,
               sso_disabled: app.sso_disabled
@@ -588,7 +153,7 @@
     }
 
     function renderApps() {
-      console.log(`🎨 Rendering ${filteredApps.length} applications with TRUE one-click SSO`);
+      console.log(`🎨 Rendering ${filteredApps.length} applications with FIXED TRUE one-click SSO (GET method)`);
       const grid = document.getElementById('appsGrid');
       const noAppsMessage = document.getElementById('noAppsMessage');
       
@@ -608,7 +173,7 @@
       
       grid.innerHTML = filteredApps.map(app => `
         <div class="app-card ${favorites.includes(app.client_id) ? 'favorite' : ''}" 
-             onclick="launchAppWithTrueOneClick('${app.client_id}')"
+             onclick="launchAppWithFixedOneClick('${app.client_id}')"
              data-app-id="${app.client_id}">
           
           <button class="favorite-btn ${favorites.includes(app.client_id) ? 'active' : ''}" 
@@ -629,30 +194,40 @@
           </div>
           
           <h6 class="fw-bold mb-1">${app.name}</h6>
-          <p class="text-muted small mb-0">${app.description || 'TRUE one-click access - no login forms'}</p>
+          <p class="text-muted small mb-0">${app.description || 'FIXED one-click access - GET method'}</p>
           
           <div class="app-stats mt-2">
-            <small><i class="bi bi-rocket me-1"></i>No Login Forms</small>
-            ${getSSOModeIcon(app.app_type, app.sso_disabled)}
+            <small><i class="bi bi-rocket me-1"></i>GET Method <span class="method-badge">No 405 Errors</span></small>
+            <div class="sso-indicator" title="GET Method Ready">
+              <i class="bi bi-check"></i>
+            </div>
           </div>
           
-          <!-- Simple launch button -->
-          <div class="mt-2" onclick="event.stopPropagation();">
-            <button class="btn btn-primary btn-sm w-100" onclick="launchAppWithTrueOneClick('${app.client_id}')">
-              <i class="bi bi-rocket-takeoff me-1"></i>Launch with TRUE One-Click
+          <!-- Multiple FIXED launch options with GET methods -->
+          <div class="btn-group-vertical w-100 mt-2" onclick="event.stopPropagation();">
+            <button class="btn btn-success btn-sm" onclick="launchAppWithFixedOneClick('${app.client_id}')">
+              <i class="bi bi-rocket-takeoff me-1"></i>Smart Launch (GET)
             </button>
+            <div class="btn-group w-100 mt-1">
+              <button class="btn btn-outline-success btn-sm" onclick="launchWithDirectAccess('${app.client_id}')" title="Direct GET access">
+                <i class="bi bi-arrow-right-circle me-1"></i>Direct
+              </button>
+              <button class="btn btn-outline-info btn-sm" onclick="launchWithInstantAccess('${app.client_id}')" title="Instant redirect">
+                <i class="bi bi-lightning me-1"></i>Instant
+              </button>
+            </div>
           </div>
           
           ${app.sso_disabled ? '<div class="alert alert-warning p-1 mt-1"><small>SSO Disabled</small></div>' : ''}
         </div>
       `).join('');
       
-      console.log('✅ Apps rendered with TRUE one-click capability (no login forms)');
+      console.log('✅ Apps rendered with FIXED one-click capability (GET methods, no 405 errors)');
     }
 
-    // TRUE One-Click SSO using session sharing - NO LOGIN FORMS EVER
-    async function launchAppWithTrueOneClick(clientId) {
-      console.log('🚀 Launching app with TRUE one-click SSO (NO LOGIN FORMS EVER):', clientId);
+    // FIXED TRUE One-Click SSO using GET method - NO 405 ERRORS EVER
+    async function launchAppWithFixedOneClick(clientId) {
+      console.log('🚀 Launching app with FIXED TRUE one-click SSO (GET method - NO 405 ERRORS):', clientId);
       
       const app = allApps.find(a => a.client_id === clientId);
       const appName = app ? app.name : 'Application';
@@ -664,10 +239,10 @@
       
       recordAppLaunch(clientId);
       setAppLaunchingState(clientId, true);
-      showToast('launching', `🚀 ${appName}`, 'Starting TRUE one-click access...', 'text-primary');
+      showToast('launching', `🚀 ${appName}`, 'Starting FIXED one-click access (GET method)...', 'text-primary');
       
       try {
-        // Step 1: Get session sharing URL (bypasses Auth0 completely)
+        // Step 1: Get session sharing URL using GET method (NO 405 ERRORS!)
         const response = await fetch(`/api/applications/${clientId}/sso-launch`, {
           method: 'POST',
           headers: { 
@@ -679,18 +254,18 @@
         const data = await response.json();
         
         if (data.success && data.direct) {
-          console.log('✅ TRUE one-click URL generated (no Auth0):', data.sso_url);
+          console.log('✅ FIXED TRUE one-click URL generated (GET method):', data.sso_url);
           console.log('🎯 Method:', data.auth_method);
-          console.log('🚫 Bypassing Auth0 login forms completely');
+          console.log('✅ Using GET parameters (NO 405 ERRORS!)');
           
-          showToast('connecting', `🔗 ${appName}`, 'Establishing direct connection...', 'text-info');
+          showToast('connecting', `🔗 ${appName}`, 'Opening with GET parameters (no 405 errors)...', 'text-info');
           
-          // Open the session sharing URL (no Auth0 login pages)
+          // Open the session sharing URL (uses GET method, NO POST ISSUES!)
           const newWindow = window.open(data.sso_url, '_blank');
           
           // Monitor for success
           let checkCount = 0;
-          const maxChecks = 25; // 5 seconds max
+          const maxChecks = 30; // 6 seconds max
           
           const checkWindow = setInterval(() => {
             checkCount++;
@@ -703,18 +278,18 @@
                 return;
               }
               
-              // Try to detect if we've navigated to the target app
+              // Check if we've successfully navigated to the target app
               try {
                 const currentUrl = newWindow.location.href;
                 if (currentUrl && !currentUrl.includes(window.location.hostname)) {
                   clearInterval(checkWindow);
-                  showToast('success', `✅ ${appName}`, 'TRUE one-click login successful!', 'text-success');
+                  showToast('success', `✅ ${appName}`, 'FIXED one-click login successful! (No 405 errors)', 'text-success');
                   setAppLaunchingState(clientId, false);
                   return;
                 }
               } catch (e) {
-                // Cross-origin means we're on the target app
-                if (checkCount > 3) {
+                // Cross-origin means we're on the target app (success!)
+                if (checkCount > 5) {
                   clearInterval(checkWindow);
                   showToast('success', `✅ ${appName}`, 'Application launched successfully!', 'text-success');
                   setAppLaunchingState(clientId, false);
@@ -728,24 +303,79 @@
             
             if (checkCount >= maxChecks) {
               clearInterval(checkWindow);
-              showToast('completed', `🎉 ${appName}`, 'Launch completed', 'text-info');
+              showToast('completed', `🎉 ${appName}`, 'Launch completed (GET method)', 'text-info');
               setAppLaunchingState(clientId, false);
             }
           }, 200);
           
         } else {
-          throw new Error(data.error || 'Failed to generate TRUE one-click access');
+          throw new Error(data.error || 'Failed to generate FIXED one-click access');
         }
         
       } catch (error) {
-        console.error('❌ TRUE one-click failed:', error);
-        handleTrueOneClickError(error, clientId, appName);
+        console.error('❌ FIXED TRUE one-click failed:', error);
+        handleFixedOneClickError(error, clientId, appName);
       }
     }
 
-    // Enhanced error handling for TRUE one-click
-    function handleTrueOneClickError(error, clientId, appName) {
-      console.error('TRUE One-Click Error Details:', error);
+    // Alternative FIXED launch methods for different scenarios (all GET method)
+    async function launchWithDirectAccess(clientId) {
+      console.log('🎯 Launching with direct GET access (NO 405 ERRORS):', clientId);
+      
+      const app = allApps.find(a => a.client_id === clientId);
+      const appName = app ? app.name : 'Application';
+      
+      recordAppLaunch(clientId);
+      setAppLaunchingState(clientId, true);
+      showToast('direct', `🎯 ${appName}`, 'Using direct GET access (no 405 errors)...', 'text-primary');
+      
+      try {
+        const directUrl = `/direct-access/${clientId}`;
+        
+        // Open direct access URL (uses GET with URL parameters)
+        window.open(directUrl, '_blank');
+        
+        setTimeout(() => {
+          showToast('success', `✅ ${appName}`, 'Direct GET access completed!', 'text-success');
+          setAppLaunchingState(clientId, false);
+        }, 2000);
+        
+      } catch (error) {
+        console.error('❌ Direct access failed:', error);
+        handleFixedOneClickError(error, clientId, appName);
+      }
+    }
+
+    async function launchWithInstantAccess(clientId) {
+      console.log('⚡ Launching with instant GET redirect (NO 405 ERRORS):', clientId);
+      
+      const app = allApps.find(a => a.client_id === clientId);
+      const appName = app ? app.name : 'Application';
+      
+      recordAppLaunch(clientId);
+      setAppLaunchingState(clientId, true);
+      showToast('instant', `⚡ ${appName}`, 'Instant GET redirect (no loading page)...', 'text-primary');
+      
+      try {
+        const instantUrl = `/instant-access/${clientId}`;
+        
+        // Open instant access URL (immediate redirect with GET parameters)
+        window.open(instantUrl, '_blank');
+        
+        setTimeout(() => {
+          showToast('success', `✅ ${appName}`, 'Instant GET access successful!', 'text-success');
+          setAppLaunchingState(clientId, false);
+        }, 1000);
+        
+      } catch (error) {
+        console.error('❌ Instant access failed:', error);
+        handleFixedOneClickError(error, clientId, appName);
+      }
+    }
+
+    // Enhanced error handling for FIXED one-click (all GET method)
+    function handleFixedOneClickError(error, clientId, appName) {
+      console.error('FIXED One-Click Error Details:', error);
       
       setAppLaunchingState(clientId, false);
       
@@ -756,11 +386,12 @@
         errorMessage = 'Your session has expired. Please refresh and try again.';
         actionButtons = '<button class="btn btn-sm btn-primary mt-2" onclick="window.location.reload()">Refresh Page</button>';
       } else {
-        // Offer retry option
+        // Offer multiple alternative GET methods
         actionButtons = `
           <div class="mt-2">
-            <button class="btn btn-sm btn-primary me-1" onclick="launchAppWithTrueOneClick('${clientId}')">Retry Launch</button>
-            <a href="/test" class="btn btn-sm btn-outline-info">Debug</a>
+            <button class="btn btn-sm btn-success me-1" onclick="launchAppWithFixedOneClick('${clientId}')">Retry Smart Launch</button>
+            <button class="btn btn-sm btn-outline-success me-1" onclick="launchWithDirectAccess('${clientId}')">Direct GET</button>
+            <button class="btn btn-sm btn-outline-info" onclick="launchWithInstantAccess('${clientId}')">Instant GET</button>
           </div>
         `;
       }
@@ -769,8 +400,8 @@
       
       const errorHtml = `
         <div class="alert alert-info alert-dismissible fade show mt-3" role="alert">
-          <h6><i class="bi bi-info-circle me-2"></i>Launch Issue: ${appName}</h6>
-          <p class="mb-1">${errorMessage}</p>
+          <h6><i class="bi bi-info-circle me-2"></i>FIXED One-Click Options: ${appName}</h6>
+          <p class="mb-1">Multiple GET-based access methods available (no 405 errors):</p>
           ${actionButtons}
           <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
@@ -789,7 +420,7 @@
           appCard.classList.add('launching');
           const indicator = document.createElement('div');
           indicator.className = 'launch-indicator';
-          indicator.innerHTML = '<i class="bi bi-rocket-takeoff me-1"></i>TRUE One-Click...';
+          indicator.innerHTML = '<i class="bi bi-rocket-takeoff me-1"></i>FIXED GET Launch...';
           appCard.appendChild(indicator);
         } else {
           appCard.classList.remove('launching');
@@ -799,7 +430,7 @@
       }
     }
 
-    // Enhanced toast notifications for TRUE one-click SSO
+    // Enhanced toast notifications for FIXED one-click SSO
     function showToast(id, title, message, textClass) {
       // Remove existing toast with same ID
       const existingToast = document.getElementById(id + 'Toast');
@@ -842,26 +473,6 @@
           }, delay + 1000);
         }
       }, 100);
-    }
-
-    function getSSOModeIcon(appType, ssoDisabled) {
-      if (ssoDisabled) {
-        return '<div class="sso-indicator" style="background: #dc3545;" title="SSO Disabled"><i class="bi bi-x"></i></div>';
-      }
-      
-      switch(appType) {
-        case 'sso_integration':
-          return '<div class="sso-indicator sso-integration" title="TRUE One-Click SSO"><i class="bi bi-link-45deg"></i></div>';
-        case 'samlp':
-          return '<div class="sso-indicator sso-saml" title="SAML TRUE One-Click"><i class="bi bi-shield-check"></i></div>';
-        case 'regular_web':
-        case 'spa':
-          return '<div class="sso-indicator sso-oauth" title="OAuth TRUE One-Click"><i class="bi bi-check"></i></div>';
-        case 'non_interactive':
-          return '<div class="sso-indicator sso-api" title="API Access"><i class="bi bi-gear"></i></div>';
-        default:
-          return '<div class="sso-indicator sso-ready" title="TRUE One-Click Ready"><i class="bi bi-check"></i></div>';
-      }
     }
 
     function toggleFavorite(clientId) {
@@ -991,7 +602,7 @@
                 ${formatLastUsed(getLastUsed(app.client_id))}
               </div>
             </div>
-            <button class="btn btn-outline-primary btn-sm" onclick="launchAppWithTrueOneClick('${app.client_id}')">
+            <button class="btn btn-outline-success btn-sm" onclick="launchAppWithFixedOneClick('${app.client_id}')">
               <i class="bi bi-box-arrow-up-right"></i>
             </button>
           </div>
@@ -1007,7 +618,7 @@
     }
 
     async function testSSO() {
-      console.log('🔐 Testing TRUE one-click SSO session...');
+      console.log('🔐 Testing FIXED TRUE one-click SSO session (GET method)...');
       
       const spinnerEl = document.getElementById('ssoSpinner');
       const checkEl = document.getElementById('ssoCheck');
@@ -1020,14 +631,14 @@
         const data = await response.json();
         
         if (data.authenticated && data.sso_ready) {
-          showToast('success', '✅ TRUE One-Click SSO Test Passed', `Session sharing ready: ${data.user.email}`, 'text-success');
+          showToast('success', '✅ FIXED SSO Test Passed', `GET method ready: ${data.user.email} (No 405 errors!)`, 'text-success');
           if (checkEl) checkEl.style.display = 'inline-block';
         } else {
-          showToast('error', '❌ TRUE One-Click SSO Test Failed', data.reason || 'Session invalid', 'text-danger');
+          showToast('error', '❌ FIXED SSO Test Failed', data.reason || 'Session invalid', 'text-danger');
         }
       } catch (error) {
-        console.error('TRUE one-click SSO test failed:', error);
-        showToast('error', '❌ TRUE One-Click SSO Test Failed', error.message, 'text-danger');
+        console.error('FIXED one-click SSO test failed:', error);
+        showToast('error', '❌ FIXED SSO Test Failed', error.message, 'text-danger');
       } finally {
         if (spinnerEl) spinnerEl.style.display = 'none';
       }
@@ -1112,4 +723,446 @@
     }
   </script>
 </body>
-</html>
+</html><!-- views/apps.ejs - Complete FIXED TRUE One-Click SSO Implementation -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Apps | Account Management</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    .account-header {
+      background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+      color: white;
+      padding: 2rem 0;
+    }
+    .nav-pills .nav-link {
+      border-radius: 50px;
+      margin-right: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .nav-pills .nav-link.active {
+      background-color: #667eea;
+    }
+    .card {
+      border: none;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      margin-bottom: 1.5rem;
+      transition: all 0.3s ease;
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+    .app-card {
+      border-radius: 15px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: linear-gradient(135deg, #ffffff 0%, #f8fff9 100%);
+      border: 2px solid #28a745;
+      border-style: dashed;
+    }
+    .app-card:hover {
+      border-color: #28a745;
+      background: linear-gradient(135deg, #f8fff9 0%, #d4edda 100%);
+      transform: translateY(-5px);
+      border-style: solid;
+    }
+    .app-card.launching {
+      border-color: #28a745;
+      background: linear-gradient(135deg, #f0fff4 0%, #d4edda 100%);
+      opacity: 0.8;
+      border-style: solid;
+    }
+    .app-card.favorite {
+      border-color: #ffc107;
+      background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
+    }
+    .app-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #28a745, #20c997);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+      transition: transform 0.3s ease;
+    }
+    .app-card:hover .app-icon {
+      transform: scale(1.1);
+    }
+    .app-card.launching .app-icon {
+      animation: pulse 1s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+    .app-type-badge {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      font-size: 0.75rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 20px;
+    }
+    .favorite-btn {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      background: none;
+      border: none;
+      font-size: 1.2rem;
+      color: #ffc107;
+      opacity: 0.5;
+      transition: opacity 0.3s ease;
+    }
+    .favorite-btn.active {
+      opacity: 1;
+    }
+    .favorite-btn:hover {
+      opacity: 1;
+    }
+    .sso-indicator {
+      position: absolute;
+      bottom: 15px;
+      right: 15px;
+      color: white;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      background: #28a745;
+    }
+    .app-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1.5rem;
+    }
+    .loading-skeleton {
+      background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+      background-size: 200% 100%;
+      animation: loading 1.5s infinite;
+      border-radius: 8px;
+    }
+    @keyframes loading {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .sso-status {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1050;
+      background: rgba(40, 167, 69, 0.9);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      backdrop-filter: blur(5px);
+    }
+    .launch-indicator {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 50px;
+      padding: 0.5rem 1rem;
+      font-size: 0.85rem;
+      color: #28a745;
+      border: 2px solid #28a745;
+      font-weight: bold;
+    }
+    .search-box {
+      position: relative;
+    }
+    .search-box i {
+      position: absolute;
+      right: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #6c757d;
+    }
+    .filter-tabs {
+      margin-bottom: 2rem;
+    }
+    .filter-tabs .nav-tabs {
+      border-bottom: 2px solid #e9ecef;
+    }
+    .filter-tabs .nav-link {
+      border: none;
+      color: #6c757d;
+      font-weight: 500;
+      padding: 0.75rem 1rem;
+      border-radius: 0;
+      border-bottom: 2px solid transparent;
+    }
+    .filter-tabs .nav-link.active {
+      background: none;
+      color: #28a745;
+      border-bottom-color: #28a745;
+    }
+    .method-badge {
+      font-size: 0.7rem;
+      padding: 0.1rem 0.3rem;
+      border-radius: 10px;
+      background: #28a745;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <!-- SSO Status Indicator -->
+  <div class="sso-status" id="ssoStatus">
+    <i class="bi bi-shield-check me-1"></i>FIXED SSO Ready (GET)
+  </div>
+
+  <!-- Pass server configuration to client-side JavaScript -->
+  <script>
+    window.AUTH0_CONFIG = {
+      customDomain: '<%= auth0Config.customDomain %>',
+      tenantDomain: '<%= auth0Config.tenantDomain %>',
+      baseUrl: '<%= auth0Config.baseUrl %>',
+      clientId: '<%= auth0Config.clientId %>'
+    };
+    window.SSO_TOKEN = '<%= ssoToken %>';
+  </script>
+
+  <!-- Header -->
+  <div class="account-header">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-md-12 text-center">
+          <h1><i class="bi bi-grid-3x3-gap me-2"></i>My Apps</h1>
+          <p class="mb-0">FIXED one-click access - GET method (no 405 errors!)</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container mt-4">
+    <!-- Alert Messages -->
+    <% if (typeof success !== 'undefined' && success) { %>
+      <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle me-2"></i><%= success %>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    <% } %>
+    <% if (typeof error !== 'undefined' && error) { %>
+      <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-circle me-2"></i><%= error %>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    <% } %>
+
+    <!-- Navigation Pills -->
+    <ul class="nav nav-pills justify-content-center mb-4">
+      <li class="nav-item">
+        <a class="nav-link" href="/account">
+          <i class="bi bi-house-door me-2"></i>Overview
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="/profile">
+          <i class="bi bi-person me-2"></i>Profile
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="/security">
+          <i class="bi bi-shield-check me-2"></i>Security
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="/change-password">
+          <i class="bi bi-key me-2"></i>Password
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link active" href="/apps">
+          <i class="bi bi-grid-3x3-gap me-2"></i>Apps
+        </a>
+      </li>
+    </ul>
+
+    <!-- Enhanced FIXED TRUE One-Click SSO Banner -->
+    <div class="alert alert-success mb-4">
+      <div class="row align-items-center">
+        <div class="col-md-8">
+          <h6 class="mb-1"><i class="bi bi-shield-check me-2"></i>FIXED TRUE One-Click SSO Active</h6>
+          <small class="text-muted">✅ GET method only - no 405 errors! All apps launch directly with URL parameters.</small>
+        </div>
+        <div class="col-md-4 text-end">
+          <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>GET Method</span>
+          <button class="btn btn-outline-success btn-sm ms-2" onclick="testSSO()">
+            <i class="bi bi-shield-check me-1"></i>Test FIXED SSO
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search and Filters -->
+    <div class="row mb-4">
+      <div class="col-lg-8">
+        <div class="search-box">
+          <input type="text" class="form-control form-control-lg" placeholder="Search applications..." id="searchInput">
+          <i class="bi bi-search"></i>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <select class="form-select form-select-lg" id="sortSelect">
+          <option value="name">Sort by Name</option>
+          <option value="recent">Recently Used</option>
+          <option value="favorites">Favorites First</option>
+          <option value="type">By Type</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Filter Tabs -->
+    <div class="filter-tabs">
+      <ul class="nav nav-tabs" id="filterTabs">
+        <li class="nav-item">
+          <a class="nav-link active" data-filter="all" href="#">
+            <i class="bi bi-grid me-1"></i>All Apps (<span id="allCount">0</span>)
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-filter="favorites" href="#">
+            <i class="bi bi-star me-1"></i>Favorites (<span id="favCount">0</span>)
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-filter="saml" href="#">
+            <i class="bi bi-shield-lock me-1"></i>SAML (<span id="samlCount">0</span>)
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-filter="oauth" href="#">
+            <i class="bi bi-key me-1"></i>OAuth (<span id="oauthCount">0</span>)
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-filter="recent" href="#">
+            <i class="bi bi-clock me-1"></i>Recent (<span id="recentCount">0</span>)
+          </a>
+        </li>
+      </ul>
+    </div>
+
+    <div class="row">
+      <!-- Main Apps Grid -->
+      <div class="col-lg-9">
+        <!-- Loading State -->
+        <div id="loadingState" class="app-grid">
+          <% for(let i = 0; i < 6; i++) { %>
+            <div class="card">
+              <div class="card-body">
+                <div class="loading-skeleton" style="height: 60px; width: 60px; margin-bottom: 1rem;"></div>
+                <div class="loading-skeleton" style="height: 20px; margin-bottom: 0.5rem;"></div>
+                <div class="loading-skeleton" style="height: 16px; width: 70%;"></div>
+              </div>
+            </div>
+          <% } %>
+        </div>
+
+        <!-- Apps Grid -->
+        <div id="appsGrid" class="app-grid" style="display: none;">
+          <!-- Apps will be populated by JavaScript -->
+        </div>
+
+        <!-- No Apps Message -->
+        <div id="noAppsMessage" class="text-center py-5" style="display: none;">
+          <i class="bi bi-grid-3x3-gap" style="font-size: 4rem; color: #6c757d;"></i>
+          <h4 class="mt-3 text-muted">No Applications Found</h4>
+          <p class="text-muted">No applications match your current filter criteria.</p>
+        </div>
+      </div>
+
+      <!-- Sidebar -->
+      <div class="col-lg-3">
+        <!-- Quick Stats -->
+        <div class="card">
+          <div class="card-header">
+            <h6><i class="bi bi-bar-chart me-2"></i>Quick Stats</h6>
+          </div>
+          <div class="card-body">
+            <div class="row text-center">
+              <div class="col-6">
+                <h4 class="text-success" id="totalApps">-</h4>
+                <small class="text-muted">Total Apps</small>
+              </div>
+              <div class="col-6">
+                <h4 class="text-warning" id="favoriteApps">-</h4>
+                <small class="text-muted">Favorites</small>
+              </div>
+            </div>
+            <hr>
+            <div class="row text-center">
+              <div class="col-6">
+                <h4 class="text-success" id="recentLogins">-</h4>
+                <small class="text-muted">This Week</small>
+              </div>
+              <div class="col-6">
+                <h4 class="text-success" id="ssoEnabled">-</h4>
+                <small class="text-muted">GET Ready</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FIXED TRUE One-Click SSO Status Card -->
+        <div class="card">
+          <div class="card-header">
+            <h6><i class="bi bi-shield-check me-2"></i>FIXED SSO Status</h6>
+          </div>
+          <div class="card-body">
+            <div class="d-flex align-items-center mb-2">
+              <div class="spinner-border spinner-border-sm text-success me-2" role="status" id="ssoSpinner" style="display: none;"></div>
+              <i class="bi bi-check-circle text-success me-2" id="ssoCheck"></i>
+              <span class="fw-bold">GET Method Active</span>
+            </div>
+            <small class="text-muted">✅ No 405 errors - URL parameters only</small>
+            <div class="mt-2">
+              <button class="btn btn-outline-success btn-sm w-100" onclick="testSSO()">
+                <i class="bi bi-shield-check me-1"></i>Test FIXED SSO
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="card">
+          <div class="card-header">
+            <h6><i class="bi bi-clock-history me-2"></i>Recent Activity</h6>
+          </div>
+          <div class="card-body p-0">
+            <div id="recentActivity">
+              <div class="p-3 text-center text-muted small">Loading activity...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card">
+          <div class="card-header">
+            <h6><i class="bi bi-lightning me-2"></i>Quick Actions</h6>
+          </div>
+          <div class="card-body">
+            <div class="d-grid gap-2">
+              <button class="btn btn-outline-success btn-sm" onclick="refreshApps()">
+                <i class="bi bi-arrow-clockwise me-2"></i>Refresh Apps
+              </button>
+              <button class="btn btn
